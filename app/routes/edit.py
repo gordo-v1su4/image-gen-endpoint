@@ -25,7 +25,7 @@ async def edit_image(
     image_base64: Optional[str] = Form(None),
     operations: str = Form(...),
     prompt: Optional[str] = Form(None),
-    model: str = Form("qwen-edit-2511"),
+    model: str = Form("qwen-2512"),
     steps: int = Form(8),
 ):
     """Edit an image with specified operations."""

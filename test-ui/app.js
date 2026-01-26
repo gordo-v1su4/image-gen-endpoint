@@ -100,7 +100,7 @@ editBtn.addEventListener('click', async () => {
         formData.append('image', fileInput.files[0]);
         formData.append('operations', JSON.stringify(operations));
         formData.append('prompt', document.getElementById('edit-prompt').value);
-        formData.append('model', 'qwen-edit-2511');
+        formData.append('model', 'qwen-2512');
         formData.append('steps', '8');
 
         const res = await fetch(`${API_URL}/v1/images/edit`, {

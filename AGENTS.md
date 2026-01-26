@@ -57,7 +57,7 @@ Models are defined in `MODEL_CONFIGS` in `model_manager.py`. Each entry specifie
 - VRAM requirements
 - License info
 
-Current models: `qwen-2512`, `qwen-edit-2511`, `flux-klein-4b`, `flux-klein-9b`
+Current models: `qwen-2512`, `flux-klein-4b`, `flux-klein-9b`
 
 ### Image I/O Pattern
 

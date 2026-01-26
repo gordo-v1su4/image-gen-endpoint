@@ -5,7 +5,7 @@ Production-ready image generation and editing API powered by state-of-the-art AI
 ## Features
 
 - **Image Generation**: Text-to-image with Qwen-Image-2512 and FLUX.2 Klein
-- **Image Editing**: AI-powered editing with Qwen-Image-Edit-2511
+- **Image Editing**: AI-powered editing with Qwen-Image-2512
 - **Basic Operations**: Resize, crop, rotate, filters (Pillow-based)
 - **Fast Inference**: Lightning LoRAs for 4-8 step generation
 - **GPU Optimized**: FP8 quantization for RTX 4090 (24GB VRAM)
@@ -15,8 +15,7 @@ Production-ready image generation and editing API powered by state-of-the-art AI
 
 | Model | Type | VRAM | License |
 |-------|------|------|---------|
-| Qwen-Image-2512 | Generation | ~16GB (FP8) | Apache 2.0 |
-| Qwen-Image-Edit-2511 | Editing | ~17GB (FP8) | Apache 2.0 |
+| Qwen-Image-2512 | Generation/Editing | ~16GB (FP8) | Apache 2.0 |
 | FLUX.2-klein-4B | Generation | ~8GB | Apache 2.0 |
 | FLUX.2-klein-9B | Generation | ~12GB | Non-commercial |
 
@@ -86,7 +85,7 @@ Content-Type: multipart/form-data
 image: <file>
 operations: [{"type": "resize", "params": {"width": 512, "height": 512}}]
 prompt: "Make it look like anime"
-model: "qwen-edit-2511"
+model: "qwen-2512"
 ```
 
 ### Available Edit Operations
