@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ImageGen Endpoint - Test UI</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎨 ImageGen Endpoint</h1>
+            <p class="subtitle">Test UI - Development Only</p>
+            <div id="health-status" class="health-badge">Checking...</div>
+        </header>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="generate">Generate</button>
+            <button class="tab" data-tab="edit">Edit</button>
+        </div>
+
+        <div id="generate-panel" class="panel active">
+            <div class="form-group">
+                <label for="prompt">Prompt</label>
+                <textarea id="prompt" rows="3" placeholder="A beautiful sunset over mountains..."></textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="model">Model</label>
+                    <select id="model">
+                        <option value="qwen-2512">Qwen-Image-2512</option>
+                        <option value="flux-klein-4b">FLUX Klein 4B</option>
+                        <option value="flux-klein-9b">FLUX Klein 9B</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="steps">Steps</label>
+                    <input type="number" id="steps" value="8" min="1" max="50">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="width">Width</label>
+                    <input type="number" id="width" value="1328" min="256" max="2048" step="8">
+                </div>
+                <div class="form-group">
+                    <label for="height">Height</label>
+                    <input type="number" id="height" value="1328" min="256" max="2048" step="8">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="use-lightning" checked> Use Lightning LoRA (faster)
+                </label>
+            </div>
+            <button id="generate-btn" class="btn primary">Generate Image</button>
+        </div>
+
+        <div id="edit-panel" class="panel">
+            <div class="form-group">
+                <label for="edit-image">Upload Image</label>
+                <input type="file" id="edit-image" accept="image/*">
+                <div id="preview-container" class="preview-container"></div>
+            </div>
+            <div class="form-group">
+                <label for="edit-prompt">Edit Prompt (optional)</label>
+                <textarea id="edit-prompt" rows="2" placeholder="Make it look like anime style..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>Operations</label>
+                <div class="operations-list" id="operations-list"></div>
+                <button id="add-operation" class="btn secondary">+ Add Operation</button>
+            </div>
+            <button id="edit-btn" class="btn primary">Apply Edits</button>
+        </div>
+
+        <div id="result-section" class="result-section hidden">
+            <h3>Result</h3>
+            <div id="result-metadata" class="metadata"></div>
+            <div id="result-image-container"></div>
+            <button id="download-btn" class="btn secondary">Download Image</button>
+        </div>
+
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Processing...</p>
+        </div>
+
+        <div id="error" class="error hidden"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

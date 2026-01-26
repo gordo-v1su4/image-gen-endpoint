@@ -1,0 +1,236 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f0f0f;
+    color: #e0e0e0;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+h1 {
+    font-size: 2rem;
+    margin-bottom: 5px;
+}
+
+.subtitle {
+    color: #888;
+    font-size: 0.9rem;
+}
+
+.health-badge {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    background: #333;
+}
+
+.health-badge.healthy { background: #1a472a; color: #4ade80; }
+.health-badge.warning { background: #422006; color: #fbbf24; }
+.health-badge.error { background: #450a0a; color: #f87171; }
+
+.tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.tab {
+    flex: 1;
+    padding: 12px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    color: #888;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tab:hover { background: #252525; }
+.tab.active { background: #2a2a2a; color: #fff; border-color: #4a4a4a; }
+
+.panel {
+    display: none;
+    background: #1a1a1a;
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid #333;
+}
+
+.panel.active { display: block; }
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-row {
+    display: flex;
+    gap: 15px;
+}
+
+.form-row .form-group { flex: 1; }
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+    color: #aaa;
+}
+
+input, textarea, select {
+    width: 100%;
+    padding: 10px;
+    background: #0f0f0f;
+    border: 1px solid #333;
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-size: 1rem;
+}
+
+input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: #666;
+}
+
+textarea { resize: vertical; }
+
+input[type="checkbox"] {
+    width: auto;
+    margin-right: 8px;
+}
+
+.btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn.primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    width: 100%;
+    margin-top: 10px;
+}
+
+.btn.primary:hover { opacity: 0.9; transform: translateY(-1px); }
+
+.btn.secondary {
+    background: #333;
+    color: #e0e0e0;
+}
+
+.btn.secondary:hover { background: #444; }
+
+.operations-list {
+    margin-bottom: 10px;
+}
+
+.operation-item {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.operation-item select { width: 120px; }
+.operation-item input { flex: 1; }
+.btn-remove {
+    background: #dc2626;
+    color: white;
+    border: none;
+    width: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.preview-container {
+    margin-top: 10px;
+    max-height: 200px;
+    overflow: hidden;
+    border-radius: 8px;
+}
+
+.preview-container img {
+    max-width: 100%;
+    max-height: 200px;
+    object-fit: contain;
+}
+
+.result-section {
+    margin-top: 20px;
+    background: #1a1a1a;
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid #333;
+}
+
+.result-section h3 {
+    margin-bottom: 15px;
+}
+
+.metadata {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 15px;
+    font-size: 0.85rem;
+    color: #888;
+}
+
+#result-image-container img {
+    max-width: 100%;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+.loading {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 3px solid #333;
+    border-top-color: #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.error {
+    background: #450a0a;
+    color: #f87171;
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 15px;
+}
+
+.hidden { display: none !important; }

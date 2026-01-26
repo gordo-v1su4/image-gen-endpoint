@@ -1,0 +1,39 @@
+# Git
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.uv/
+
+# Testing
+tests/
+test-ui/
+test_outputs/
+
+# Documentation
+README.md
+CONTRIBUTING.md
+*.md
+
+# Models (use persistent volume instead)
+models/
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.local
+
+# Logs
+*.log
+logs/

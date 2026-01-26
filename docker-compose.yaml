@@ -1,0 +1,57 @@
+version: "3.8"
+
+services:
+  imagegen-endpoint:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: imagegen-endpoint:latest
+    container_name: imagegen-endpoint
+    restart: unless-stopped
+    
+    # GPU support
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    
+    # For older Docker versions, use runtime instead of deploy
+    # runtime: nvidia
+    
+    ports:
+      - "8000:8000"
+    
+    environment:
+      - MODELS_PATH=/app/models
+      - HF_HOME=/app/models/huggingface
+      - TORCH_HOME=/app/models/torch
+      - CUDA_VISIBLE_DEVICES=0
+      - NVIDIA_VISIBLE_DEVICES=all
+      - DOWNLOAD_MODELS=false
+      # Set HF_TOKEN in Coolify secrets for gated models
+      # - HF_TOKEN=${HF_TOKEN}
+    
+    volumes:
+      # Persistent storage for models - configure path in Coolify
+      - models_data:/app/models
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  models_data:
+    # In Coolify, map this to a host path with sufficient storage (100GB+)
+    # Example: /data/imagegen-models
