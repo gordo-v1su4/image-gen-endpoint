@@ -13,7 +13,6 @@ env/
 
 # Testing
 tests/
-test-ui/
 test_outputs/
 
 # Documentation
