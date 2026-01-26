@@ -3,9 +3,6 @@ services:
     image: docker.io/gordov1su4/imagegen-endpoint:latest
     restart: unless-stopped
 
-    ports:
-      - "8000:8000"
-
     environment:
       - MODELS_PATH=/app/models
       - HF_HOME=/app/models/huggingface
