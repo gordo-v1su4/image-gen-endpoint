@@ -44,7 +44,12 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 Access the test UI at `/test-ui/` while the server is running:
 - **Local**: http://localhost:8000/test-ui/
-- **Production**: https://your-domain/test-ui/
+- **Production**: https://image.v1su4.com/test-ui/
+- **Modern UI**: https://image.v1su4.com/test-ui/webapp.html
+
+### Production Deployment
+
+For production deployment with Coolify and persistent model storage, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## API Endpoints
 
