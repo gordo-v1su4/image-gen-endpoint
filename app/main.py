@@ -3,6 +3,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.routes import health, create, edit
 
@@ -38,6 +39,9 @@ app.include_router(health.router, tags=["Health"])
 app.include_router(create.router, prefix="/v1/images", tags=["Image Generation"])
 app.include_router(edit.router, prefix="/v1/images", tags=["Image Editing"])
 
+# Mount static files for test UI
+app.mount("/test-ui", StaticFiles(directory="test-ui", html=True), name="test-ui")
+
 
 @app.get("/")
 async def root():
@@ -46,4 +50,5 @@ async def root():
         "name": "ImageGen Endpoint",
         "version": "0.2.0",
         "docs": "/docs",
+        "test_ui": "/test-ui/",
     }

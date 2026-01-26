@@ -1,4 +1,7 @@
-const API_URL = 'http://localhost:8000';
+// Use relative URL or same origin for API calls
+const API_URL = window.location.hostname === 'localhost'
+    ? 'http://localhost:8000'
+    : window.location.origin;
 
 // DOM Elements
 const tabs = document.querySelectorAll('.tab');

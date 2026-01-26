@@ -42,7 +42,9 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ### Test UI
 
-Open `test-ui/index.html` in your browser while the server is running.
+Access the test UI at `/test-ui/` while the server is running:
+- **Local**: http://localhost:8000/test-ui/
+- **Production**: https://your-domain/test-ui/
 
 ## API Endpoints
 
