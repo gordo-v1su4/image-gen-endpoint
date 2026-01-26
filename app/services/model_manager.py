@@ -1,4 +1,4 @@
-"""Model management service for loading and caching AI models."
+"""Model management service for loading and caching AI models."""
 
 import os
 import torch
