@@ -46,6 +46,13 @@ Open `test-ui/index.html` in your browser while the server is running.
 
 ## API Endpoints
 
+### Interactive Documentation
+
+Access the interactive API documentation:
+- **Swagger UI**: `/docs` - Interactive API explorer
+- **ReDoc**: `/redoc` - Alternative documentation format
+- **OpenAPI Schema**: `/openapi.json` - Raw specification
+
 ### Health Check
 ```bash
 GET /health

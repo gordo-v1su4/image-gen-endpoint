@@ -20,7 +20,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="ImageGen Endpoint",
     description="Production-ready image generation and editing API",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -44,6 +44,6 @@ async def root():
     """Root endpoint."""
     return {
         "name": "ImageGen Endpoint",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "docs": "/docs",
     }
