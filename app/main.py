@@ -1,11 +1,24 @@
 """Main FastAPI application entry point."""
 
+import re
+from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.routes import health, create, edit
+
+
+def get_version() -> str:
+    """Read version from pyproject.toml."""
+    try:
+        pyproject_path = Path(__file__).parent.parent / "pyproject.toml"
+        content = pyproject_path.read_text()
+        match = re.search(r'version\s*=\s*"([^"]+)"', content)
+        return match.group(1) if match else "unknown"
+    except Exception:
+        return "unknown"
 
 
 @asynccontextmanager
@@ -18,10 +31,12 @@ async def lifespan(app: FastAPI):
     print("👋 Shutting down ImageGen Endpoint...")
 
 
+VERSION = get_version()
+
 app = FastAPI(
     title="ImageGen Endpoint",
     description="Production-ready image generation and editing API",
-    version="0.2.0",
+    version=VERSION,
     lifespan=lifespan,
 )
 
@@ -48,7 +63,8 @@ async def root():
     """Root endpoint."""
     return {
         "name": "ImageGen Endpoint",
-        "version": "0.2.0",
+        "version": VERSION,
         "docs": "/docs",
         "test_ui": "/test-ui/",
+        "webapp": "/test-ui/webapp.html",
     }

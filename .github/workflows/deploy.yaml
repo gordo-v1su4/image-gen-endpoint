@@ -20,6 +20,30 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Bump version
+        id: version
+        run: |
+          python scripts/bump_version.py
+          VERSION=$(grep -Po 'version\s*=\s*"\K[^"]+' pyproject.toml)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $VERSION"
+
+      - name: Commit version bump
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add pyproject.toml
+          git diff --staged --quiet || git commit -m "chore: bump version to ${{ steps.version.outputs.version }} [skip ci]"
+          git push
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -37,6 +61,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.version.outputs.version }}
             type=sha,prefix=
             type=ref,event=branch
 
@@ -56,7 +81,9 @@ jobs:
     steps:
       - name: Trigger Coolify Deployment
         run: |
-          curl -X GET "${{ secrets.COOLIFY_WEBHOOK_URL }}" \
+          # Add timestamp to force new deployment
+          TIMESTAMP=$(date +%s)
+          curl -X GET "${{ secrets.COOLIFY_WEBHOOK_URL }}?force=true&ts=$TIMESTAMP" \
             -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
             --fail --silent --show-error
         env:
@@ -64,4 +91,4 @@ jobs:
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
 
       - name: Deployment Triggered
-        run: echo "✅ Docker image pushed and Coolify deployment triggered"
+        run: echo "✅ Docker image pushed to latest and versioned tags. Coolify deployment triggered with force pull."
