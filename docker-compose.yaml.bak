@@ -3,6 +3,7 @@ services:
     image: docker.io/gordov1su4/imagegen-endpoint:latest
     restart: unless-stopped
 
+
     environment:
       - MODELS_PATH=/app/models
       - HF_HOME=/app/models/huggingface
@@ -11,7 +12,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - DOWNLOAD_MODELS=false
       # Set HF_TOKEN in Coolify secrets for gated models
-      - HF_TOKEN=${HF_TOKEN}
+      # - HF_TOKEN=${HF_TOKEN}
 
     volumes:
       # Persistent storage for models - configure path in Coolify
