@@ -44,9 +44,5 @@ if __name__ == "__main__":
 
     new_version = bump_version(pyproject_file)
 
-    # Write version to output file for GitHub Actions
-    github_output = Path("/tmp/version.txt")
-    github_output.write_text(new_version)
-
-    # Also output for GitHub Actions environment
-    print(f"::set-output name=version::{new_version}")
+    # Output version for capture
+    print(f"NEW_VERSION={new_version}")

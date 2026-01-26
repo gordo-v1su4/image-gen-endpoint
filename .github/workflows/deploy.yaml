@@ -32,10 +32,11 @@ jobs:
       - name: Bump version
         id: version
         run: |
-          python scripts/bump_version.py
-          VERSION=$(grep -Po 'version\s*=\s*"\K[^"]+' pyproject.toml)
+          OUTPUT=$(python scripts/bump_version.py)
+          echo "$OUTPUT"
+          VERSION=$(echo "$OUTPUT" | grep "NEW_VERSION=" | cut -d'=' -f2)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "New version: $VERSION"
+          echo "Version set to: $VERSION"
 
       - name: Commit version bump
         run: |

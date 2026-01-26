@@ -68,6 +68,7 @@ ENV VIRTUAL_ENV="/app/.venv"
 COPY --chown=appuser:appuser app/ ./app/
 COPY --chown=appuser:appuser scripts/ ./scripts/
 COPY --chown=appuser:appuser test-ui/ ./test-ui/
+COPY --chown=appuser:appuser pyproject.toml ./pyproject.toml
 
 # Make startup script executable
 RUN chmod +x ./scripts/startup.sh
