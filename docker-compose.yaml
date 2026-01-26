@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   imagegen-endpoint:
     image: docker.io/gordov1su4/imagegen-endpoint:latest
