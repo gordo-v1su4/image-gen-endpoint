@@ -169,5 +169,3 @@ class ModelManager:
 
 # Global model manager instance
 model_manager = ModelManager()
-# Global model manager instance
-model_manager = ModelManager()
