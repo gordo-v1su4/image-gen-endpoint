@@ -9,13 +9,21 @@ services:
       - TORCH_HOME=/app/models/torch
       - CUDA_VISIBLE_DEVICES=0
       - NVIDIA_VISIBLE_DEVICES=all
-      - DOWNLOAD_MODELS=false
+      - DOWNLOAD_MODELS=true
       # Set HF_TOKEN in Coolify secrets for gated models
       - HF_TOKEN=${HF_TOKEN}
 
     volumes:
       # Persistent storage for models - configure path in Coolify
       - models_data:/app/models
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
