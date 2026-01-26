@@ -65,17 +65,33 @@ class ImageResponse(BaseModel):
     metadata: ImageMetadata
 
 
+class OpenAIImageData(BaseModel):
+    """OpenAI-compatible image data format."""
+    b64_json: str = Field(..., description="Base64-encoded image")
+    url: Optional[str] = Field(None, description="Data URI with base64")
+
+
 class ImageCreateResponse(BaseModel):
-    """Response model for image generation."""
+    """Response model for image generation - supports both custom and OpenAI formats."""
     success: bool = True
-    data: Dict[str, List[ImageResponse]] = Field(..., description="Generated images")
+    # OpenAI-compatible format (primary)
+    data: List[OpenAIImageData] = Field(..., description="Generated images in OpenAI format")
+    created: int = Field(..., description="Unix timestamp (OpenAI compatibility)")
+    model: str = Field(..., description="Model name (OpenAI compatibility)")
+    # Original format preserved for backward compatibility
+    images: Optional[List[ImageResponse]] = Field(None, description="Original format images")
     metadata: Dict[str, Any] = Field(..., description="Request metadata")
 
 
 class ImageEditResponse(BaseModel):
-    """Response model for image editing."""
+    """Response model for image editing - supports both custom and OpenAI formats."""
     success: bool = True
-    data: Dict[str, List[ImageResponse]] = Field(..., description="Edited images")
+    # OpenAI-compatible format (primary)
+    data: List[OpenAIImageData] = Field(..., description="Edited images in OpenAI format")
+    created: int = Field(..., description="Unix timestamp (OpenAI compatibility)")
+    model: str = Field(..., description="Model name (OpenAI compatibility)")
+    # Original format preserved for backward compatibility
+    images: Optional[List[ImageResponse]] = Field(None, description="Original format images")
     metadata: Dict[str, Any] = Field(..., description="Request metadata")
 
 

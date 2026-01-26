@@ -12,6 +12,7 @@ from app.models import (
     ImageMetadata,
     ImageFormat,
     EditOperation,
+    OpenAIImageData,
 )
 from app.services.image_processor import apply_edit_operations
 from app.utils.image_utils import image_to_base64, load_image_from_upload, load_image_from_base64
@@ -60,13 +61,23 @@ async def edit_image(
                 steps=steps,
             ),
         )
-        
+
+        # Create OpenAI-compatible format
+        data_uri = f"data:image/png;base64,{image_data}"
+        openai_image = OpenAIImageData(
+            b64_json=image_data,
+            url=data_uri
+        )
+
+        # Return both formats for maximum compatibility
         return ImageEditResponse(
             success=True,
-            data={"images": [response_image]},
+            data=[openai_image],  # OpenAI-compatible format for Gemini
+            created=int(time.time()),
+            model=model,
+            images=[response_image],  # Original format for backward compatibility
             metadata={
                 "processing_time_ms": processing_time,
-                "model": model,
                 "operations": [op.type for op in edit_ops],
                 "prompt": prompt,
             },

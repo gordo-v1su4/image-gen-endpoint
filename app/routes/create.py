@@ -10,6 +10,7 @@ from app.models import (
     ImageResponse,
     ImageMetadata,
     ImageFormat,
+    OpenAIImageData,
 )
 from app.services.image_processor import generate_placeholder_image
 from app.utils.image_utils import image_to_base64
@@ -48,13 +49,23 @@ async def create_image(request: ImageCreateRequest):
                 seed=request.seed,
             ),
         )
-        
+
+        # Create OpenAI-compatible format
+        data_uri = f"data:image/png;base64,{image_data}"
+        openai_image = OpenAIImageData(
+            b64_json=image_data,
+            url=data_uri
+        )
+
+        # Return both formats for maximum compatibility
         return ImageCreateResponse(
             success=True,
-            data={"images": [response_image]},
+            data=[openai_image],  # OpenAI-compatible format for Gemini
+            created=int(time.time()),
+            model=request.model.value,
+            images=[response_image],  # Original format for backward compatibility
             metadata={
                 "processing_time_ms": processing_time,
-                "model": request.model.value,
                 "prompt": request.prompt,
             },
         )

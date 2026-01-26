@@ -1,0 +1,353 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Wand2, 
+  Download, 
+  Trash2, 
+  AlertCircle, 
+  Loader2, 
+  Image as ImageIcon,
+  Maximize2,
+  X,
+  Code,
+  SlidersHorizontal,
+  Eye,
+  Zap,
+  Copy,
+  CheckCircle2,
+  Layers,
+  LayoutGrid,
+  ChevronDown,
+  Terminal
+} from 'lucide-react';
+
+const App = () => {
+  const [prompt, setPrompt] = useState('');
+  const [negativePrompt, setNegativePrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [error, setError] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [debugLog, setDebugLog] = useState(null);
+  const [showFullRaw, setShowFullRaw] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [isCustomModel, setIsCustomModel] = useState(false);
+  
+  const [params, setParams] = useState({
+    model: "Qwen-Image-2512",
+    width: 1024,
+    height: 1024,
+    steps: 8,
+    guidance_scale: 1,
+    seed: 0,
+    use_lightning: true
+  });
+
+  // Updated based on provided documentation
+  const MODELS = [
+    { id: "Qwen-Image-2512", name: "Qwen Image 2512", type: "Gen & Edit" },
+    { id: "FLUX.2-klein-4B", name: "FLUX.2 Klein 4B", type: "Fast Gen" },
+    { id: "FLUX.2-klein-9B", name: "FLUX.2 Klein 9B", type: "High Quality" },
+    { id: "custom", name: "Custom / Other...", type: "Manual Input" }
+  ];
+
+  const BASE_URL = 'https://image.v1su4.com';
+  const ENDPOINT = `${BASE_URL}/v1/images/create`;
+  const apiKey = ""; 
+
+  const enhancePromptWithGemini = async () => {
+    if (!prompt.trim()) return;
+    setIsEnhancing(true);
+    setError(null);
+    const systemPrompt = "Professional prompt engineer. Expand the user's idea into a highly detailed prompt. Return JSON: {enhancedPrompt, negativePrompt}.";
+    const userQuery = `Enhance: "${prompt}"`;
+
+    try {
+      let response;
+      let retries = 0;
+      const delays = [1000, 2000, 4000];
+      while (retries < 3) {
+        try {
+          response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: userQuery }] }],
+              systemInstruction: { parts: [{ text: systemPrompt }] },
+              generationConfig: { responseMimeType: "application/json" }
+            })
+          });
+          if (response.ok) break;
+        } catch (e) { if (retries === 2) throw e; }
+        await new Promise(r => setTimeout(r, delays[retries]));
+        retries++;
+      }
+      const result = await response.json();
+      const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (text) {
+        const data = JSON.parse(text);
+        setPrompt(data.enhancedPrompt);
+        setNegativePrompt(data.negativePrompt || "");
+      }
+    } catch (err) {
+      setError("Prompt enhancement unavailable.");
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
+
+  const handleGenerate = async (e) => {
+    e.preventDefault();
+    if (!prompt.trim()) return;
+    setIsGenerating(true);
+    setError(null);
+    try {
+      const response = await fetch(ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...params, prompt, negative_prompt: negativePrompt }),
+      });
+      const result = await response.json();
+      // Updated to support both OpenAI format (data[0].b64_json) and original format (images[0].data)
+      const base64 = result.data?.[0]?.b64_json || result.images?.[0]?.data || result.data?.images?.[0]?.data;
+      if (!response.ok) throw new Error(result.detail || "Generation failed");
+      
+      const imageUrl = base64.startsWith('data:') ? base64 : `data:image/png;base64,${base64}`;
+      setHistory([{ id: Date.now(), url: imageUrl, prompt, timestamp: new Date().toLocaleTimeString() }, ...history]);
+      setDebugLog(result);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleModelChange = (e) => {
+    const value = e.target.value;
+    if (value === 'custom') {
+      setIsCustomModel(true);
+      setParams({ ...params, model: '' });
+    } else {
+      setIsCustomModel(false);
+      setParams({ ...params, model: value });
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] text-neutral-200 font-sans selection:bg-emerald-500/30">
+      {/* Top Navigation */}
+      <nav className="border-b border-white/5 bg-[#0d0d0d]/80 backdrop-blur-md sticky top-0 z-30">
+        <div className="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-8">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-emerald-500 rounded flex items-center justify-center">
+                <Zap className="w-5 h-5 text-black fill-current" />
+              </div>
+              <span className="font-bold tracking-tight text-white text-lg">V1SU4 <span className="text-emerald-500 text-sm font-mono ml-1">STUDIO</span></span>
+            </div>
+            <div className="hidden md:flex gap-6 text-sm font-medium text-neutral-500">
+              <span className="text-white cursor-default">Generator</span>
+              <span className="hover:text-neutral-300 cursor-pointer transition-colors">Workspace</span>
+              <span className="hover:text-neutral-300 cursor-pointer transition-colors">History</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <button className="p-2 hover:bg-white/5 rounded transition-colors text-neutral-400">
+              <LayoutGrid className="w-5 h-5" />
+            </button>
+            <div className="h-8 w-[1px] bg-white/10 mx-2" />
+            <div className="w-8 h-8 rounded-full bg-neutral-800 border border-white/10" />
+          </div>
+        </div>
+      </nav>
+
+      <main className="max-w-[1600px] mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-8">
+        
+        {/* Sidebar Controls */}
+        <aside className="space-y-6">
+          <div className="bg-[#111] border border-white/10 rounded-lg overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-neutral-400">Configuration</h2>
+              <SlidersHorizontal className="w-3 h-3 text-neutral-600" />
+            </div>
+            
+            <div className="p-5 space-y-6">
+              {/* Model Select */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-wider flex items-center gap-2">
+                  Model Architecture
+                </label>
+                <div className="space-y-2">
+                  <div className="relative group">
+                    <select 
+                      value={isCustomModel ? 'custom' : params.model}
+                      onChange={handleModelChange}
+                      className="w-full bg-[#0a0a0a] border border-white/10 rounded p-3 text-sm appearance-none focus:border-emerald-500/50 outline-none transition-all cursor-pointer font-medium"
+                    >
+                      {MODELS.map(m => <option key={m.id} value={m.id}>{m.name} ({m.type})</option>)}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600 pointer-events-none group-hover:text-emerald-500" />
+                  </div>
+                  
+                  {isCustomModel && (
+                    <div className="relative animate-in fade-in slide-in-from-top-1">
+                      <Terminal className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-emerald-500" />
+                      <input 
+                        type="text" 
+                        value={params.model}
+                        onChange={(e) => setParams({ ...params, model: e.target.value })}
+                        placeholder="Enter model ID from docs..."
+                        className="w-full bg-[#0a0a0a] border border-white/10 border-emerald-500/30 rounded p-2 pl-8 text-xs focus:border-emerald-500 outline-none font-mono text-emerald-100 placeholder:text-neutral-700"
+                        autoFocus
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Text Areas */}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-wider">Prompt</label>
+                    <button 
+                      onClick={enhancePromptWithGemini}
+                      disabled={isEnhancing || !prompt.trim()}
+                      className="text-[10px] font-bold text-emerald-500 hover:text-emerald-400 disabled:opacity-30 transition-colors flex items-center gap-1"
+                    >
+                      {isEnhancing ? "REFINING..." : "✨ ENHANCE"}
+                    </button>
+                  </div>
+                  <textarea 
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder="Subject, lighting, composition details..."
+                    className="w-full h-32 bg-[#0a0a0a] border border-white/10 rounded p-3 text-sm focus:border-emerald-500/50 outline-none transition-all resize-none placeholder:text-neutral-700 leading-relaxed"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-wider">Negative</label>
+                  <textarea 
+                    value={negativePrompt}
+                    onChange={(e) => setNegativePrompt(e.target.value)}
+                    placeholder="Low quality, blurry, distorted..."
+                    className="w-full h-16 bg-[#0a0a0a] border border-white/10 rounded p-3 text-sm focus:border-emerald-500/50 outline-none transition-all resize-none placeholder:text-neutral-700"
+                  />
+                </div>
+              </div>
+
+              {/* Parameters Grid */}
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-neutral-600 uppercase">Steps</label>
+                  <input type="number" value={params.steps} onChange={(e) => setParams({...params, steps: parseInt(e.target.value)})} className="w-full bg-[#0a0a0a] border border-white/10 rounded p-2 text-xs focus:border-emerald-500/50 outline-none" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-neutral-600 uppercase">Guidance</label>
+                  <input type="number" value={params.guidance_scale} onChange={(e) => setParams({...params, guidance_scale: parseFloat(e.target.value)})} className="w-full bg-[#0a0a0a] border border-white/10 rounded p-2 text-xs focus:border-emerald-500/50 outline-none" />
+                </div>
+              </div>
+
+              {error && (
+                <div className="flex items-start gap-2 text-red-400 bg-red-400/5 p-3 rounded border border-red-400/20 text-[11px] font-mono leading-tight">
+                  <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <button 
+                onClick={handleGenerate}
+                disabled={isGenerating || !prompt.trim()}
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed text-white font-bold text-sm tracking-widest rounded transition-all flex items-center justify-center gap-3 active:scale-[0.99] border border-white/10 shadow-lg shadow-emerald-500/10"
+              >
+                {isGenerating ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>GENERATE <Wand2 className="w-4 h-4" /></>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {debugLog && (
+            <div className="bg-[#111] border border-white/10 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest flex items-center gap-2">
+                  <Code className="w-3 h-3 text-emerald-500" /> Log Output
+                </h3>
+                <button 
+                  onClick={() => setShowFullRaw(!showFullRaw)}
+                  className="text-[10px] text-neutral-400 hover:text-white transition-colors"
+                >
+                  {showFullRaw ? "Collapse" : "Expand"}
+                </button>
+              </div>
+              <pre className="text-[10px] font-mono text-neutral-600 overflow-x-auto max-h-32 bg-black/40 p-2 rounded scrollbar-hide">
+                {JSON.stringify(debugLog, null, 2)}
+              </pre>
+            </div>
+          )}
+        </aside>
+
+        {/* Workspace Area */}
+        <section className="min-h-[600px] flex flex-col">
+          {history.length === 0 ? (
+            <div className="flex-1 border border-dashed border-white/10 rounded-lg flex flex-col items-center justify-center text-neutral-700 bg-white/[0.01]">
+              <div className="w-16 h-16 rounded-full border border-white/5 flex items-center justify-center mb-4">
+                <ImageIcon className="w-6 h-6 opacity-20" />
+              </div>
+              <p className="text-sm font-medium opacity-40">Workspace empty. Start a new generation.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-6 animate-in fade-in duration-500">
+              {history.map((item) => (
+                <div key={item.id} className="group bg-[#111] border border-white/10 rounded-lg overflow-hidden transition-all hover:border-white/20">
+                  <div className="aspect-square relative overflow-hidden bg-black">
+                    <img src={item.url} alt={item.prompt} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.02]" />
+                    <div className="absolute inset-0 bg-[#0a0a0a]/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3 backdrop-blur-sm">
+                      <button onClick={() => setSelectedImage(item)} className="w-10 h-10 bg-white/10 hover:bg-white/20 rounded flex items-center justify-center border border-white/10">
+                        <Maximize2 className="w-5 h-5" />
+                      </button>
+                      <button onClick={() => window.open(item.url, '_blank')} className="w-10 h-10 bg-emerald-600 hover:bg-emerald-500 rounded flex items-center justify-center shadow-lg">
+                        <Download className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="p-4 bg-[#111]">
+                    <div className="flex items-center justify-between mb-2">
+                       <span className="text-[10px] font-mono text-neutral-600 uppercase">{item.timestamp}</span>
+                       <button onClick={() => setHistory(history.filter(i => i.id !== item.id))} className="text-neutral-600 hover:text-red-400 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <p className="text-[12px] text-neutral-400 line-clamp-2 leading-relaxed h-9">{item.prompt}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </main>
+
+      {/* Modal Overlay */}
+      {selectedImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-8 bg-black/95 backdrop-blur-xl animate-in fade-in duration-300" onClick={() => setSelectedImage(null)}>
+          <div className="max-w-5xl w-full relative" onClick={e => e.stopPropagation()}>
+            <img src={selectedImage.url} alt="Full Resolution" className="w-full h-auto rounded border border-white/10 shadow-2xl shadow-black" />
+            <div className="absolute -top-12 right-0 flex gap-4">
+              <button onClick={() => setSelectedImage(null)} className="text-white/50 hover:text-white flex items-center gap-2 text-sm font-medium transition-colors">
+                <X className="w-5 h-5" /> ESC TO CLOSE
+              </button>
+            </div>
+            <div className="absolute -bottom-16 left-0 right-0 text-center">
+              <p className="text-neutral-400 text-sm max-w-2xl mx-auto italic">"{selectedImage.prompt}"</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default App;
