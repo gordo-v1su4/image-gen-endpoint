@@ -1,4 +1,4 @@
-"""Model management service for loading and caching AI models."""
+"""Model management service for loading and caching AI models."
 
 import os
 import torch
@@ -15,13 +15,6 @@ MODEL_CONFIGS = {
         "lightning_8step": "Qwen-Image-2512-Lightning-8steps-V1.0.safetensors",
         "vram_fp8": 16,  # GB
         "pipeline_class": "QwenImagePipeline",
-    },
-    "qwen-edit-2511": {
-        "repo_id": "Qwen/Qwen-Image-Edit-2511",
-        "lightning_repo": "lightx2v/Qwen-Image-Edit-2511-Lightning",
-        "lightning_4step": "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors",
-        "vram_fp8": 17,
-        "pipeline_class": "QwenImageEditPipeline",
     },
     "flux-klein-4b": {
         "repo_id": "black-forest-labs/FLUX.2-klein-4B",
@@ -174,6 +167,6 @@ class ModelManager:
         # This is a placeholder
         return image
 
-
 # Global model manager instance
 model_manager = ModelManager()
+"""
