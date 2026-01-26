@@ -1,4 +1,4 @@
-"""Pydantic models for API request/response schemas."""
+""""""""""Pydantic models for API request/response schemas.
 
 from enum import Enum
 from typing import List, Optional, Dict, Any
@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field
 class ModelType(str, Enum):
     """Available model types."""
     QWEN_2512 = "qwen-2512"
-    QWEN_EDIT_2511 = "qwen-edit-2511"
     FLUX_KLEIN_4B = "flux-klein-4b"
     FLUX_KLEIN_9B = "flux-klein-9b"
 
@@ -43,7 +42,7 @@ class ImageEditRequest(BaseModel):
     """Request model for image editing."""
     prompt: Optional[str] = Field(None, description="Text prompt for AI editing")
     operations: List[EditOperation] = Field(..., description="List of edit operations")
-    model: ModelType = Field(ModelType.QWEN_EDIT_2511, description="Model to use")
+    model: ModelType = Field(ModelType.QWEN_2512, description="Model to use")
     steps: int = Field(8, ge=1, le=50, description="Number of inference steps")
     use_lightning: bool = Field(True, description="Use Lightning LoRA")
 
@@ -102,3 +101,4 @@ class HealthResponse(BaseModel):
     gpu_name: Optional[str] = None
     gpu_memory_total: Optional[float] = None  # GB
     gpu_memory_used: Optional[float] = None  # GB
+"""
