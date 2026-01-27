@@ -1,39 +1,13 @@
 """Image processing service using Pillow."""
 
 from typing import List
-from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
+from PIL import Image, ImageFilter, ImageEnhance
 
 from app.models import EditOperation
 
 
-def generate_placeholder_image(width: int, height: int, text: str = "Placeholder") -> Image.Image:
-    """Generate a placeholder image with text."""
-    image = Image.new("RGB", (width, height), color=(40, 40, 50))
-    draw = ImageDraw.Draw(image)
-    
-    # Draw grid pattern
-    for i in range(0, width, 50):
-        draw.line([(i, 0), (i, height)], fill=(60, 60, 70), width=1)
-    for i in range(0, height, 50):
-        draw.line([(0, i), (width, i)], fill=(60, 60, 70), width=1)
-    
-    # Add text
-    try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
-    except:
-        font = ImageFont.load_default()
-    
-    # Center text
-    bbox = draw.textbbox((0, 0), text, font=font)
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
-    x = (width - text_width) // 2
-    y = (height - text_height) // 2
-    
-    draw.text((x, y), text, fill=(200, 200, 220), font=font)
-    draw.text((10, 10), f"{width}x{height}", fill=(150, 150, 170), font=font)
-    
-    return image
+# Placeholder function removed - only real AI inference is supported
+# To set up real AI models, run: ./setup_flux_klein.py
 
 
 def apply_edit_operations(image: Image.Image, operations: List[EditOperation]) -> Image.Image:

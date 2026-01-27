@@ -31,6 +31,9 @@ ENV VIRTUAL_ENV="/app/.venv"
 # Install PyTorch with CUDA 12.1 support
 RUN uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 
+# Install diffusers from source (required for Flux2KleinPipeline)
+RUN uv pip install 'git+https://github.com/huggingface/diffusers.git'
+
 # Install other dependencies
 RUN uv pip install -e .
 

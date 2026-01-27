@@ -4,32 +4,68 @@ import os
 import torch
 from typing import Optional, Dict, Any
 from pathlib import Path
-from diffusers import DiffusionPipeline
+from diffusers import DiffusionPipeline, Flux2KleinPipeline
 
 # Model configurations
 MODEL_CONFIGS = {
     "qwen-2512": {
         "repo_id": "Qwen/Qwen-Image-2512",
-        "fp8_repo": "Qwen/Qwen-Image-2512",  # FP8 variant
-        "lightning_repo": "lightx2v/Qwen-Image-2512-Lightning",
-        "lightning_4step": "Qwen-Image-2512-Lightning-4steps-V1.0-fp32.safetensors",
-        "lightning_8step": "Qwen-Image-2512-Lightning-8steps-V1.0.safetensors",
-        "vram_fp8": 16,  # GB
-        "pipeline_class": "QwenImagePipeline",
+        "pipeline_class": DiffusionPipeline,
+        "vram": 12,  # GB (bfloat16)
+        "steps": 50,
+        "guidance_scale": 4.0,
+        "description": "Qwen Image-2512 - High quality text-to-image",
+        "license": "check-repo",
+        "supported_sizes": {
+            "1:1": (1328, 1328),
+            "16:9": (1664, 928),
+            "9:16": (928, 1664),
+            "4:3": (1472, 1104),
+            "3:4": (1104, 1472),
+            "3:2": (1584, 1056),
+            "2:3": (1056, 1584),
+        },
+        "default_size": (1328, 1328),
+    },
+    "qwen-nunchaku": {
+        "repo_id": "QuantFunc/Nunchaku-Qwen-Image-2512",
+        "subfolder": "nunchaku_qwen_image_2512_balance_fp4",
+        "pipeline_class": DiffusionPipeline,
+        "vram": 8,  # GB (quantized FP4)
+        "steps": 4,  # 4-step LoRA optimized
+        "guidance_scale": 4.0,
+        "description": "Quantized Qwen with 4-step LoRA - Fast inference",
+        "license": "apache-2.0",
+        "supported_sizes": {
+            "1:1": (1328, 1328),
+            "16:9": (1664, 928),
+            "9:16": (928, 1664),
+            "4:3": (1472, 1104),
+            "3:4": (1104, 1472),
+            "3:2": (1584, 1056),
+            "2:3": (1056, 1584),
+        },
+        "default_size": (1328, 1328),
     },
     "flux-klein-4b": {
         "repo_id": "black-forest-labs/FLUX.2-klein-4B",
-        "fp8_repo": "black-forest-labs/FLUX.2-klein-4b-fp8",
-        "vram_fp8": 8,
-        "pipeline_class": "FluxKleinPipeline",
+        "pipeline_class": Flux2KleinPipeline,
+        "vram": 8,  # GB (bfloat16)
+        "steps": 4,
+        "guidance_scale": 1.0,
+        "description": "FLUX.2 Klein 4B - Fast 4-step generation",
         "license": "apache-2.0",
+        "default_size": (1024, 1024),
     },
     "flux-klein-9b": {
         "repo_id": "black-forest-labs/FLUX.2-klein-9B",
-        "fp8_repo": "black-forest-labs/FLUX.2-klein-9b-fp8",
-        "vram_fp8": 12,
-        "pipeline_class": "FluxKleinPipeline",
+        "pipeline_class": Flux2KleinPipeline,
+        "vram": 12,  # GB (bfloat16)
+        "steps": 4,
+        "guidance_scale": 1.0,
+        "description": "FLUX.2 Klein 9B - Higher quality 4-step generation",
         "license": "non-commercial",
+        "default_size": (1024, 1024),
     },
 }
 
@@ -135,40 +171,32 @@ class ModelManager:
         print(f"  Device: {self.device}")
 
         try:
-            # Use FP8 variant for VRAM efficiency if available
-            repo_id = config.get("fp8_repo", config["repo_id"])
+            # Get the correct pipeline class
+            pipeline_class = config["pipeline_class"]
+            repo_id = config["repo_id"]
 
-            # Load pipeline with optimizations
-            pipeline = DiffusionPipeline.from_pretrained(
-                repo_id,
-                torch_dtype=self.dtype,
-                variant="fp8" if "fp8_repo" in config else None,
-                use_safetensors=True,
-            )
+            # Load pipeline with correct class
+            load_kwargs = {
+                "torch_dtype": self.dtype,
+            }
 
-            # Move to GPU if available
-            pipeline = pipeline.to(self.device)
+            # Add subfolder if specified (for Nunchaku)
+            if "subfolder" in config:
+                load_kwargs["subfolder"] = config["subfolder"]
+
+            print(f"  Loading with {pipeline_class.__name__}...")
+            pipeline = pipeline_class.from_pretrained(repo_id, **load_kwargs)
 
             # Enable memory optimizations
             if self.device == "cuda":
+                # Use CPU offloading to save VRAM (works with all pipelines)
                 pipeline.enable_model_cpu_offload()
-                pipeline.enable_vae_slicing()
-                pipeline.enable_vae_tiling()
 
-            # Load Lightning LoRA if requested and available
-            if use_lightning and "lightning_repo" in config:
-                print(f"  Loading Lightning LoRA for {steps} steps...")
-                lora_id = config["lightning_repo"]
-                lora_file = config.get(f"lightning_{steps}step", config.get("lightning_8step"))
-
-                try:
-                    pipeline.load_lora_weights(
-                        lora_id,
-                        weight_name=lora_file
-                    )
-                    pipeline.fuse_lora(lora_scale=1.0)
-                except Exception as e:
-                    print(f"  Warning: Could not load Lightning LoRA: {e}")
+                # Enable VAE optimizations if available
+                if hasattr(pipeline, "enable_vae_slicing"):
+                    pipeline.enable_vae_slicing()
+                if hasattr(pipeline, "enable_vae_tiling"):
+                    pipeline.enable_vae_tiling()
 
             # Verify all components loaded correctly
             self._verify_pipeline_components(pipeline, model_name)
@@ -255,11 +283,17 @@ class ModelManager:
         steps: int = 8,
         use_lightning: bool = True,
     ):
-        """Edit an image using the specified model."""
+        """Edit an image using the specified model.
+
+        Note: Real AI-powered editing requires model support for img2img.
+        For now, use the image editing operations in image_processor.py.
+        FLUX.2 [klein] 4B supports img2img - see flux_server.py for implementation.
+        """
+        # Load model for editing
         model_data = await self.load_model(model_name, use_lightning, steps)
-        
-        # TODO: Implement actual editing
-        # This is a placeholder
+
+        # For now, return original image
+        # To implement: use pipeline's img2img capabilities
         return image
 
 # Global model manager instance

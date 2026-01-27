@@ -65,10 +65,12 @@ echo ""
 echo "🔍 Checking for cached models..."
 check_model_exists "$MODELS_PATH/qwen-2512" "Qwen-Image-2512"
 QWEN_EXISTS=$?
-check_model_exists "$MODELS_PATH/lightning-loras" "Lightning LoRAs"
-LIGHTNING_EXISTS=$?
+check_model_exists "$MODELS_PATH/qwen-nunchaku" "Nunchaku-Qwen-Image-2512"
+QWEN_NUNCHAKU_EXISTS=$?
 check_model_exists "$MODELS_PATH/flux-klein-4b" "FLUX.2-klein-4B"
-FLUX_EXISTS=$?
+FLUX_4B_EXISTS=$?
+check_model_exists "$MODELS_PATH/flux-klein-9b" "FLUX.2-klein-9B"
+FLUX_9B_EXISTS=$?
 
 # Check if we should download models
 DOWNLOAD_MODELS="${DOWNLOAD_MODELS:-false}"
@@ -77,7 +79,7 @@ if [ "$DOWNLOAD_MODELS" = "true" ]; then
     echo ""
     echo "📥 Downloading missing models..."
 
-    # Download Qwen-Image-2512 FP8 (only if not cached)
+    # Download Qwen-Image-2512 (only if not cached)
     if [ $QWEN_EXISTS -ne 0 ]; then
         echo "  → Downloading Qwen-Image-2512..."
         python3 -c "
@@ -99,9 +101,9 @@ except Exception as e:
 "
     fi
 
-    # Download Lightning LoRAs (only if not cached)
-    if [ $LIGHTNING_EXISTS -ne 0 ]; then
-        echo "  → Downloading Lightning LoRAs..."
+    # Download Nunchaku-Qwen (only if not cached)
+    if [ $QWEN_NUNCHAKU_EXISTS -ne 0 ]; then
+        echo "  → Downloading Nunchaku-Qwen-Image-2512..."
         python3 -c "
 from huggingface_hub import snapshot_download
 import os
@@ -110,18 +112,19 @@ models_path = os.environ.get('MODELS_PATH', '/app/models')
 
 try:
     snapshot_download(
-        'lightx2v/Qwen-Image-2512-Lightning',
-        local_dir=f'{models_path}/lightning-loras',
+        'QuantFunc/Nunchaku-Qwen-Image-2512',
+        local_dir=f'{models_path}/qwen-nunchaku',
         local_dir_use_symlinks=False,
+        ignore_patterns=['*.md', '*.txt'],
     )
-    print('    ✅ Lightning LoRAs downloaded')
+    print('    ✅ Nunchaku-Qwen-Image-2512 downloaded')
 except Exception as e:
-    print(f'    ⚠️  Lightning LoRAs: {e}')
+    print(f'    ⚠️  Nunchaku-Qwen: {e}')
 "
     fi
 
     # Download FLUX Klein 4B (only if not cached)
-    if [ $FLUX_EXISTS -ne 0 ]; then
+    if [ $FLUX_4B_EXISTS -ne 0 ]; then
         echo "  → Downloading FLUX.2-klein-4B..."
         python3 -c "
 from huggingface_hub import snapshot_download
@@ -131,7 +134,7 @@ models_path = os.environ.get('MODELS_PATH', '/app/models')
 
 try:
     snapshot_download(
-        'black-forest-labs/FLUX.2-klein-4b-fp8',
+        'black-forest-labs/FLUX.2-klein-4B',
         local_dir=f'{models_path}/flux-klein-4b',
         local_dir_use_symlinks=False,
         ignore_patterns=['*.md', '*.txt'],
@@ -142,7 +145,29 @@ except Exception as e:
 "
     fi
 
-    if [ $QWEN_EXISTS -eq 0 ] && [ $LIGHTNING_EXISTS -eq 0 ] && [ $FLUX_EXISTS -eq 0 ]; then
+    # Download FLUX Klein 9B (only if not cached)
+    if [ $FLUX_9B_EXISTS -ne 0 ]; then
+        echo "  → Downloading FLUX.2-klein-9B..."
+        python3 -c "
+from huggingface_hub import snapshot_download
+import os
+
+models_path = os.environ.get('MODELS_PATH', '/app/models')
+
+try:
+    snapshot_download(
+        'black-forest-labs/FLUX.2-klein-9B',
+        local_dir=f'{models_path}/flux-klein-9b',
+        local_dir_use_symlinks=False,
+        ignore_patterns=['*.md', '*.txt'],
+    )
+    print('    ✅ FLUX.2-klein-9B downloaded')
+except Exception as e:
+    print(f'    ⚠️  FLUX Klein 9B: {e}')
+"
+    fi
+
+    if [ $QWEN_EXISTS -eq 0 ] && [ $QWEN_NUNCHAKU_EXISTS -eq 0 ] && [ $FLUX_4B_EXISTS -eq 0 ] && [ $FLUX_9B_EXISTS -eq 0 ]; then
         echo "  ✅ All models already cached, skipping downloads"
     fi
 else
