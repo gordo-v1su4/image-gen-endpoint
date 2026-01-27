@@ -22,7 +22,7 @@ RUN echo "Building stable-diffusion.cpp for RTX 4090 (compute_89)..." && \
     cd stable-diffusion.cpp && \
     mkdir build && cd build && \
     cmake .. -DSD_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="89" && \
-    cmake --build . --config Release -j$(nproc) && \
+    cmake --build . --config Release -j2 && \
     echo "Build complete!"
 
 # Create models directory (models will be downloaded at runtime)
