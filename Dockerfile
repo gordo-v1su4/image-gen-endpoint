@@ -6,7 +6,9 @@ ENV PYTHONUNBUFFERED=1
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     git cmake build-essential pkg-config \
-    python3.10 python3-pip curl wget \
+    python3.10 python3.10-venv python3-pip curl wget \
+    && ln -sf /usr/bin/python3.10 /usr/bin/python3 \
+    && ln -sf /usr/bin/python3.10 /usr/bin/python \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv for faster Python package management
@@ -34,7 +36,8 @@ COPY . /app
 RUN chmod +x /app/scripts/download_models.sh /app/scripts/entrypoint.sh
 
 # Install Python dependencies with uv (faster and more efficient)
-RUN uv pip install --system --no-cache -e .
+RUN python3 -m pip install --upgrade pip && \
+    uv pip install --system --python python3.10 --no-cache -e .
 
 # Environment variables
 ENV SD_CLI_PATH=/opt/stable-diffusion.cpp/build/bin/sd-cli
