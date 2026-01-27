@@ -1,4 +1,4 @@
-""""""""""Pydantic models for API request/response schemas.
+"""Pydantic models for API request/response schemas."""
 
 from enum import Enum
 from typing import List, Optional, Dict, Any
@@ -117,4 +117,3 @@ class HealthResponse(BaseModel):
     gpu_name: Optional[str] = None
     gpu_memory_total: Optional[float] = None  # GB
     gpu_memory_used: Optional[float] = None  # GB
-"""
