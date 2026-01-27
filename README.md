@@ -4,9 +4,10 @@ FastAPI-based image generation service using Qwen-Image-2512 (GGUF) and FLUX mod
 
 ## Features
 
-- Text-to-image generation with Qwen-Image-2512 (Q4_K_M GGUF)
+- Real AI-powered text-to-image generation with Qwen-Image-2512 (Q4_K_M GGUF)
 - Optimized for NVIDIA RTX 4090 (24GB VRAM)
 - Multiple aspect ratios (1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3)
+- OpenAI-compatible API format
 - FastAPI REST API
 
 ## Quick Start
