@@ -9,6 +9,10 @@ RUN apt-get update && apt-get install -y \
     python3.11 python3-pip curl wget \
     && rm -rf /var/lib/apt/lists/*
 
+# Install uv for faster Python package management
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
+
 # Build stable-diffusion.cpp with RTX 4090 support (compute_89)
 WORKDIR /opt
 RUN echo "Building stable-diffusion.cpp for RTX 4090 (compute_89)..." && \
@@ -29,8 +33,8 @@ COPY . /app
 # Make scripts executable
 RUN chmod +x /app/scripts/download_models.sh /app/scripts/entrypoint.sh
 
-# Install Python dependencies
-RUN pip3 install --no-cache-dir -e .
+# Install Python dependencies with uv (faster and more efficient)
+RUN uv pip install --system --no-cache -e .
 
 # Environment variables
 ENV SD_CLI_PATH=/opt/stable-diffusion.cpp/build/bin/sd-cli
