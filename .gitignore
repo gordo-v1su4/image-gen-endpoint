@@ -67,3 +67,4 @@ logs/
 
 # Test UI (optional - remove this line if you want test UI in repo)
 # test-ui/
+stable-diffusion.cpp/

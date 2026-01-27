@@ -19,9 +19,13 @@ test_outputs/
 README.md
 CONTRIBUTING.md
 *.md
+docs/
 
 # Models (use persistent volume instead)
 models/
+
+# Local stable-diffusion.cpp build
+stable-diffusion.cpp/
 
 # Development files
 .vscode/

@@ -2,18 +2,20 @@
 
 import os
 import torch
+import math
 from typing import Optional, Dict, Any
 from pathlib import Path
-from diffusers import DiffusionPipeline, Flux2KleinPipeline
+from diffusers import DiffusionPipeline, Flux2KleinPipeline, QwenImagePipeline, FlowMatchEulerDiscreteScheduler
+from .gguf_manager import GGUFModelManager
 
 # Model configurations
 MODEL_CONFIGS = {
     "qwen-2512": {
         "repo_id": "Qwen/Qwen-Image-2512",
-        "pipeline_class": DiffusionPipeline,
+        "pipeline_class": QwenImagePipeline,
         "vram": 12,  # GB (bfloat16)
         "steps": 50,
-        "guidance_scale": 4.0,
+        "guidance_scale": 1.0,
         "description": "Qwen Image-2512 - High quality text-to-image",
         "license": "check-repo",
         "supported_sizes": {
@@ -27,15 +29,37 @@ MODEL_CONFIGS = {
         },
         "default_size": (1328, 1328),
     },
-    "qwen-nunchaku": {
-        "repo_id": "QuantFunc/Nunchaku-Qwen-Image-2512",
-        "subfolder": "nunchaku_qwen_image_2512_balance_fp4",
-        "pipeline_class": DiffusionPipeline,
-        "vram": 8,  # GB (quantized FP4)
-        "steps": 4,  # 4-step LoRA optimized
-        "guidance_scale": 4.0,
-        "description": "Quantized Qwen with 4-step LoRA - Fast inference",
-        "license": "apache-2.0",
+    "qwen-lightning-4step": {
+        "repo_id": "Qwen/Qwen-Image-2512",
+        "pipeline_class": QwenImagePipeline,
+        "lora_repo": "lightx2v/Qwen-Image-2512-Lightning",
+        "lora_file": "Qwen-Image-2512-Lightning-4steps-V1.0-bf16.safetensors",
+        "vram": 10,  # GB (bfloat16 with LoRA)
+        "steps": 4,  # Lightning optimized
+        "guidance_scale": 1.0,
+        "description": "Qwen with 4-step Lightning LoRA - Fast inference",
+        "license": "check-repo",
+        "supported_sizes": {
+            "1:1": (1328, 1328),
+            "16:9": (1664, 928),
+            "9:16": (928, 1664),
+            "4:3": (1472, 1104),
+            "3:4": (1104, 1472),
+            "3:2": (1584, 1056),
+            "2:3": (1056, 1584),
+        },
+        "default_size": (1328, 1328),
+    },
+    "qwen-lightning-8step": {
+        "repo_id": "Qwen/Qwen-Image-2512",
+        "pipeline_class": QwenImagePipeline,
+        "lora_repo": "lightx2v/Qwen-Image-2512-Lightning",
+        "lora_file": "Qwen-Image-2512-Lightning-8steps-V1.0.safetensors",
+        "vram": 10,  # GB (bfloat16 with LoRA)
+        "steps": 8,  # Lightning optimized
+        "guidance_scale": 1.0,
+        "description": "Qwen with 8-step Lightning LoRA - Balance quality/speed",
+        "license": "check-repo",
         "supported_sizes": {
             "1:1": (1328, 1328),
             "16:9": (1664, 928),
@@ -67,6 +91,24 @@ MODEL_CONFIGS = {
         "license": "non-commercial",
         "default_size": (1024, 1024),
     },
+    "qwen-2512-gguf": {
+        "model_type": "gguf",
+        "vram": 19,  # GB (actual measured: 18.7GB)
+        "steps": 40,
+        "guidance_scale": 2.5,
+        "description": "Qwen-2512 GGUF Q4_K_M - Optimized for 24GB VRAM (RTX 4090)",
+        "license": "check-repo",
+        "supported_sizes": {
+            "1:1": (1328, 1328),
+            "16:9": (1664, 928),
+            "9:16": (928, 1664),
+            "4:3": (1472, 1104),
+            "3:4": (1104, 1472),
+            "3:2": (1584, 1056),
+            "2:3": (1056, 1584),
+        },
+        "default_size": (1328, 1328),
+    },
 }
 
 
@@ -76,10 +118,11 @@ class ModelManager:
     def __init__(self, models_path: Optional[str] = None):
         self.models_path = Path(models_path or os.environ.get("MODELS_PATH", "./models"))
         self.models_path.mkdir(parents=True, exist_ok=True)
-        
+
         self.loaded_models: Dict[str, Any] = {}
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.dtype = torch.bfloat16 if self.device == "cuda" else torch.float32
+        self.gguf_manager = None  # Lazy load GGUF manager
         
     def get_gpu_memory(self) -> Dict[str, float]:
         """Get current GPU memory usage."""
@@ -180,18 +223,47 @@ class ModelManager:
                 "torch_dtype": self.dtype,
             }
 
-            # Add subfolder if specified (for Nunchaku)
-            if "subfolder" in config:
-                load_kwargs["subfolder"] = config["subfolder"]
+            # Special setup for QwenImagePipeline
+            if pipeline_class == QwenImagePipeline:
+                print(f"  Setting up custom FlowMatchEulerDiscreteScheduler for Qwen...")
+                scheduler_config = {
+                    "base_image_seq_len": 256,
+                    "base_shift": math.log(3),
+                    "invert_sigmas": False,
+                    "max_image_seq_len": 8192,
+                    "max_shift": math.log(3),
+                    "num_train_timesteps": 1000,
+                    "shift": 1.0,
+                    "shift_terminal": None,
+                    "stochastic_sampling": False,
+                    "time_shift_type": "exponential",
+                    "use_beta_sigmas": False,
+                    "use_dynamic_shifting": True,
+                    "use_exponential_sigmas": False,
+                    "use_karras_sigmas": False,
+                }
+                scheduler = FlowMatchEulerDiscreteScheduler.from_config(scheduler_config)
+                load_kwargs["scheduler"] = scheduler
 
             print(f"  Loading with {pipeline_class.__name__}...")
             pipeline = pipeline_class.from_pretrained(repo_id, **load_kwargs)
 
+            # Load Lightning LoRA if specified
+            if "lora_repo" in config and "lora_file" in config:
+                print(f"  Loading Lightning LoRA from {config['lora_repo']}...")
+                print(f"  LoRA file: {config['lora_file']}")
+                pipeline.load_lora_weights(
+                    config["lora_repo"],
+                    weight_name=config["lora_file"],
+                )
+                pipeline.fuse_lora()
+                print(f"  ✓ Lightning LoRA loaded and fused")
+
+            # Move to device
+            pipeline = pipeline.to(self.device)
+
             # Enable memory optimizations
             if self.device == "cuda":
-                # Use CPU offloading to save VRAM (works with all pipelines)
-                pipeline.enable_model_cpu_offload()
-
                 # Enable VAE optimizations if available
                 if hasattr(pipeline, "enable_vae_slicing"):
                     pipeline.enable_vae_slicing()
@@ -240,6 +312,20 @@ class ModelManager:
         use_lightning: bool = True,
     ):
         """Generate an image using the specified model."""
+        # Check if this is a GGUF model
+        config = MODEL_CONFIGS.get(model_name)
+        if config and config.get("model_type") == "gguf":
+            if self.gguf_manager is None:
+                self.gguf_manager = GGUFModelManager()
+            return await self.gguf_manager.generate_image(
+                prompt=prompt,
+                width=width,
+                height=height,
+                steps=steps,
+                cfg_scale=guidance_scale,
+                seed=seed,
+            )
+
         # Load model if not loaded
         model_data = await self.load_model(model_name, use_lightning, steps)
         pipeline = model_data["pipeline"]
@@ -259,15 +345,28 @@ class ModelManager:
 
         # Generate image
         with torch.inference_mode():
-            result = pipeline(
-                prompt=prompt,
-                negative_prompt=negative_prompt if negative_prompt else None,
-                width=width,
-                height=height,
-                num_inference_steps=steps,
-                guidance_scale=guidance_scale,
-                generator=generator,
-            )
+            # QwenImagePipeline uses true_cfg_scale parameter
+            if isinstance(pipeline, QwenImagePipeline):
+                result = pipeline(
+                    prompt=prompt,
+                    negative_prompt=negative_prompt if negative_prompt else None,
+                    width=width,
+                    height=height,
+                    num_inference_steps=steps,
+                    true_cfg_scale=guidance_scale,
+                    guidance_scale=1.0,
+                    generator=generator,
+                )
+            else:
+                result = pipeline(
+                    prompt=prompt,
+                    negative_prompt=negative_prompt if negative_prompt else None,
+                    width=width,
+                    height=height,
+                    num_inference_steps=steps,
+                    guidance_scale=guidance_scale,
+                    generator=generator,
+                )
 
         # Get the first generated image
         image = result.images[0]
