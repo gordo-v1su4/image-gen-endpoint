@@ -16,6 +16,8 @@ services:
     volumes:
       # Persistent storage for models - configure path in Coolify
       - models_data:/app/models
+      # Persistent storage for GGUF models (downloaded at runtime on first start)
+      - gguf_models:/opt/models/qwen-gguf
 
     deploy:
       resources:
@@ -42,3 +44,7 @@ volumes:
   models_data:
     # In Coolify, map this to a host path with sufficient storage (100GB+)
     # Example: /data/imagegen-models
+  gguf_models:
+    # Storage for GGUF models (18GB+ needed for Qwen models)
+    # Downloaded automatically on first container start
+    # Example: /data/imagegen-gguf-models
