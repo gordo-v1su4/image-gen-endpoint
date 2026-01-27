@@ -9,6 +9,24 @@
 - Lightning LoRA support for 4-8 step fast generation
 - Memory optimizations: CPU offload, VAE slicing, VAE tiling
 
+### ✅ Full Component Loading
+When loading a model, `DiffusionPipeline.from_pretrained()` automatically loads **ALL** required components:
+
+**Text Processing:**
+- Text Encoder (CLIP or T5 depending on model)
+- Tokenizer for text preprocessing
+- Some models have dual text encoders for better quality
+
+**Image Generation:**
+- U-Net or Transformer (the core diffusion model)
+- VAE (Variational Autoencoder) for latent space encoding/decoding
+- Noise Scheduler for the denoising process
+
+**Component Verification:**
+- Added `_verify_pipeline_components()` method
+- Automatically logs all loaded components on model initialization
+- Ensures critical components (text encoder, VAE, diffusion model) are present
+
 ### ✅ Real Image Generation (model_manager.py)
 - Replaced placeholder with actual diffusion model inference
 - Full parameter support: prompt, negative_prompt, width, height, steps, guidance_scale, seed

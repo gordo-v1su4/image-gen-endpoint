@@ -86,7 +86,33 @@ class ModelManager:
                 "license": config.get("license", "check-repo"),
             })
         return models
-    
+
+    def _verify_pipeline_components(self, pipeline, model_name: str):
+        """Verify that pipeline has all necessary components."""
+        print(f"  Verifying components...")
+
+        # Check for text encoder (CLIP/T5)
+        if hasattr(pipeline, 'text_encoder') and pipeline.text_encoder is not None:
+            print(f"    ✓ Text Encoder: {type(pipeline.text_encoder).__name__}")
+        elif hasattr(pipeline, 'text_encoder_2') and pipeline.text_encoder_2 is not None:
+            print(f"    ✓ Text Encoder 2: {type(pipeline.text_encoder_2).__name__}")
+
+        # Check for VAE
+        if hasattr(pipeline, 'vae') and pipeline.vae is not None:
+            print(f"    ✓ VAE: {type(pipeline.vae).__name__}")
+
+        # Check for diffusion model (U-Net or Transformer)
+        if hasattr(pipeline, 'unet') and pipeline.unet is not None:
+            print(f"    ✓ U-Net: {type(pipeline.unet).__name__}")
+        elif hasattr(pipeline, 'transformer') and pipeline.transformer is not None:
+            print(f"    ✓ Transformer: {type(pipeline.transformer).__name__}")
+
+        # Check for scheduler
+        if hasattr(pipeline, 'scheduler') and pipeline.scheduler is not None:
+            print(f"    ✓ Scheduler: {type(pipeline.scheduler).__name__}")
+
+        print(f"  All critical components verified!")
+
     async def load_model(self, model_name: str, use_lightning: bool = True, steps: int = 8):
         """Load a model into memory."""
         if model_name in self.loaded_models:
@@ -143,6 +169,9 @@ class ModelManager:
                     pipeline.fuse_lora(lora_scale=1.0)
                 except Exception as e:
                     print(f"  Warning: Could not load Lightning LoRA: {e}")
+
+            # Verify all components loaded correctly
+            self._verify_pipeline_components(pipeline, model_name)
 
             self.loaded_models[model_name] = {
                 "config": config,
