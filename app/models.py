@@ -7,7 +7,14 @@ from pydantic import BaseModel, Field
 
 class ModelType(str, Enum):
     """Available model types."""
+    # Qwen GGUF models (recommended for RTX 4090)
+    QWEN_2512_GGUF = "qwen-2512-gguf"
+    QWEN_EDIT_GGUF = "qwen-edit-gguf"
+    # Qwen diffusers models (requires more VRAM)
     QWEN_2512 = "qwen-2512"
+    QWEN_LIGHTNING_4STEP = "qwen-lightning-4step"
+    QWEN_LIGHTNING_8STEP = "qwen-lightning-8step"
+    # FLUX models (diffusers)
     FLUX_KLEIN_4B = "flux-klein-4b"
     FLUX_KLEIN_9B = "flux-klein-9b"
 

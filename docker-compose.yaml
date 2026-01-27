@@ -45,6 +45,10 @@ volumes:
     # In Coolify, map this to a host path with sufficient storage (100GB+)
     # Example: /data/imagegen-models
   gguf_models:
-    # Storage for GGUF models (18GB+ needed for Qwen models)
+    # Storage for GGUF models (~31GB needed for generation + edit models)
+    # - qwen-image-2512-Q4_K_M.gguf (~13GB)
+    # - qwen-image-edit-2511-Q4_K_M.gguf (~13GB)
+    # - Qwen2.5-VL-7B-Instruct-UD-Q4_K_XL.gguf (~4.5GB)
+    # - qwen_image_vae.safetensors (~243MB)
     # Downloaded automatically on first container start
     # Example: /data/imagegen-gguf-models

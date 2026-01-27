@@ -5,7 +5,19 @@ import torch
 import math
 from typing import Optional, Dict, Any
 from pathlib import Path
-from diffusers import DiffusionPipeline, Flux2KleinPipeline, QwenImagePipeline, FlowMatchEulerDiscreteScheduler
+from diffusers import DiffusionPipeline, QwenImagePipeline, FlowMatchEulerDiscreteScheduler
+
+# Try to import FLUX pipelines if available (may not exist in all diffusers versions)
+try:
+    from diffusers import FluxPipeline
+    FLUX_AVAILABLE = True
+    # Use FluxPipeline for both FLUX Klein models
+    Flux2KleinPipeline = FluxPipeline
+except ImportError:
+    FLUX_AVAILABLE = False
+    Flux2KleinPipeline = DiffusionPipeline  # Fallback to generic pipeline
+    print("Warning: FluxPipeline not available in this diffusers version, using DiffusionPipeline as fallback")
+
 from .gguf_manager import GGUFModelManager
 
 # Model configurations
@@ -97,7 +109,25 @@ MODEL_CONFIGS = {
         "steps": 40,
         "guidance_scale": 2.5,
         "description": "Qwen-2512 GGUF Q4_K_M - Optimized for 24GB VRAM (RTX 4090)",
-        "license": "check-repo",
+        "license": "apache-2.0",
+        "supported_sizes": {
+            "1:1": (1328, 1328),
+            "16:9": (1664, 928),
+            "9:16": (928, 1664),
+            "4:3": (1472, 1104),
+            "3:4": (1104, 1472),
+            "3:2": (1584, 1056),
+            "2:3": (1056, 1584),
+        },
+        "default_size": (1328, 1328),
+    },
+    "qwen-edit-gguf": {
+        "model_type": "gguf",
+        "vram": 19,  # GB (similar to generation model)
+        "steps": 40,
+        "guidance_scale": 4.0,
+        "description": "Qwen-Image-Edit-2511 GGUF Q4_K_M - AI-powered image editing",
+        "license": "apache-2.0",
         "supported_sizes": {
             "1:1": (1328, 1328),
             "16:9": (1664, 928),
@@ -379,20 +409,39 @@ class ModelManager:
         model_name: str,
         image,
         prompt: str,
-        steps: int = 8,
-        use_lightning: bool = True,
+        steps: int = 40,
+        guidance_scale: float = 4.0,
+        seed: Optional[int] = None,
     ):
         """Edit an image using the specified model.
 
-        Note: Real AI-powered editing requires model support for img2img.
-        For now, use the image editing operations in image_processor.py.
-        FLUX.2 [klein] 4B supports img2img - see flux_server.py for implementation.
-        """
-        # Load model for editing
-        model_data = await self.load_model(model_name, use_lightning, steps)
+        Args:
+            model_name: Model to use (use 'qwen-edit-gguf' for AI editing)
+            image: PIL Image to edit
+            prompt: Text prompt describing the edit
+            steps: Number of inference steps
+            guidance_scale: Classifier-free guidance scale
+            seed: Random seed for reproducibility
 
-        # For now, return original image
-        # To implement: use pipeline's img2img capabilities
+        Returns:
+            Edited PIL Image
+        """
+        config = MODEL_CONFIGS.get(model_name)
+
+        # Use GGUF manager for GGUF models
+        if config and config.get("model_type") == "gguf":
+            if self.gguf_manager is None:
+                self.gguf_manager = GGUFModelManager()
+            return await self.gguf_manager.edit_image(
+                prompt=prompt,
+                input_image=image,
+                steps=steps,
+                cfg_scale=guidance_scale,
+                seed=seed,
+            )
+
+        # Fallback for non-GGUF models (not fully implemented)
+        print(f"Warning: AI editing not fully supported for {model_name}")
         return image
 
 # Global model manager instance

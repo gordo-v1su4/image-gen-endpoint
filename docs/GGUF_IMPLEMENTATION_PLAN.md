@@ -329,6 +329,139 @@ Lightning LoRA is for reducing steps in diffusers models. GGUF already handles o
 5. ⏳ Test locally before deploying
 6. ⏳ Update Coolify deployment with new Dockerfile
 
+## Unsloth Official Reference
+
+**Source:** https://unsloth.ai/docs/models/qwen-image-2512/stable-diffusion.cpp
+
+### Environment Requirements
+
+- **Minimum RAM:** 13.2+ GB combined memory for 4-bit quantized models
+- **GPU:** Optional but recommended (CUDA support)
+- **OS:** Ubuntu 22.04+ recommended
+
+### Build Dependencies
+
+```bash
+sudo apt update
+sudo apt install -y git cmake build-essential pkg-config
+```
+
+### CUDA Configuration
+
+```bash
+export CUDA_HOME=/usr/local/cuda
+export PATH="$CUDA_HOME/bin:$PATH"
+export LD_LIBRARY_PATH="$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}"
+
+# Verify installation
+nvcc --version
+ldconfig -p | grep -E 'libcudart\.so|libcublas\.so'
+```
+
+### Build from Source
+
+```bash
+git clone --recursive https://github.com/leejet/stable-diffusion.cpp
+cd stable-diffusion.cpp
+mkdir -p build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release -DSD_CUDA=ON
+cmake --build . -j"$(nproc)"
+```
+
+### Required Model Files
+
+#### Generation Model (Qwen-Image-2512)
+| Component | File | Size | Source |
+|-----------|------|------|--------|
+| Diffusion Model | `qwen-image-2512-Q4_K_M.gguf` | ~13 GB | [unsloth/Qwen-Image-2512-GGUF](https://huggingface.co/unsloth/Qwen-Image-2512-GGUF) |
+| Text Encoder | `Qwen2.5-VL-7B-Instruct-UD-Q4_K_XL.gguf` | ~4.5 GB | [unsloth/Qwen2.5-VL-7B-Instruct-GGUF](https://huggingface.co/unsloth/Qwen2.5-VL-7B-Instruct-GGUF) |
+| VAE | `qwen_image_vae.safetensors` | ~243 MB | [Comfy-Org/Qwen-Image_ComfyUI](https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI) |
+
+#### Edit Model (Qwen-Image-Edit-2511)
+| Component | File | Size | Source |
+|-----------|------|------|--------|
+| Diffusion Model | `qwen-image-edit-2511-Q4_K_M.gguf` | ~13 GB | [unsloth/Qwen-Image-Edit-2511-GGUF](https://huggingface.co/unsloth/Qwen-Image-Edit-2511-GGUF) |
+| Text Encoder | `Qwen2.5-VL-7B-Instruct-UD-Q4_K_XL.gguf` | ~4.5 GB | (shared with generation) |
+| VAE | `qwen_image_vae.safetensors` | ~243 MB | (shared with generation) |
+
+**Total storage required:** ~31 GB (both models share text encoder and VAE)
+
+### CLI Parameters Reference
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `--diffusion-model` | Path to GGUF diffusion model | `qwen-image-2512-Q4_K_M.gguf` |
+| `--llm` | Path to text encoder GGUF | `Qwen2.5-VL-7B-Instruct-UD-Q4_K_XL.gguf` |
+| `--vae` | Path to VAE safetensors | `qwen_image_vae.safetensors` |
+| `--cfg-scale` | Guidance scale | `2.5` |
+| `--sampling-method` | Sampling method | `euler` |
+| `--steps` | Number of diffusion steps | `40` |
+| `-H` | Image height | `1328` |
+| `-W` | Image width | `1328` |
+| `-p` | Prompt text | `'a cat'` |
+| `-o` | Output file path | `output.png` |
+| `--diffusion-fa` | Enable flash attention | (flag) |
+| `--flow-shift` | Flow shift value | `3` |
+| `--offload-to-cpu` | Offload to CPU when VRAM limited | (flag) |
+| `-v` | Verbose output | (flag) |
+| `--seed` | Random seed for reproducibility | `42` |
+
+### Full CLI Example - Generation
+
+```bash
+./build/bin/sd-cli \
+    --diffusion-model ./models/qwen-image-2512-Q4_K_M.gguf \
+    --vae ./models/qwen_image_vae.safetensors \
+    --llm ./models/Qwen2.5-VL-7B-Instruct-UD-Q4_K_XL.gguf \
+    --cfg-scale 2.5 \
+    --sampling-method euler \
+    --steps 40 \
+    -H 1328 -W 1328 \
+    --diffusion-fa \
+    --flow-shift 3 \
+    -p 'a beautiful mountain landscape at sunset, photorealistic' \
+    -o output.png \
+    -v
+```
+
+### Full CLI Example - Image Editing
+
+```bash
+./build/bin/sd-cli \
+    --diffusion-model ./models/qwen-image-edit-2511-Q4_K_M.gguf \
+    --vae ./models/qwen_image_vae.safetensors \
+    --llm ./models/Qwen2.5-VL-7B-Instruct-UD-Q4_K_XL.gguf \
+    --cfg-scale 4.0 \
+    --sampling-method euler \
+    --steps 40 \
+    -H 1328 -W 1328 \
+    --diffusion-fa \
+    --flow-shift 3 \
+    -i input_image.png \
+    -p 'make the sky more dramatic with storm clouds' \
+    -o edited_output.png \
+    -v
+```
+
+### Memory Optimization Flags
+
+For systems with limited VRAM:
+```bash
+--offload-to-cpu  # Offload model weights to CPU when not in use
+```
+
+### Quantization Options
+
+Available quantization levels (quality/size tradeoff):
+
+| Quantization | Quality | Size | Use Case |
+|--------------|---------|------|----------|
+| Q4_K_M | Excellent | ~13 GB | **Recommended** - Best balance |
+| Q4_K_S | Very Good | ~12 GB | Smaller but slightly lower quality |
+| Q8_0 | Near Perfect | ~20 GB | When VRAM allows |
+
+---
+
 ## Questions?
 
 - GGUF format is battle-tested for Qwen-Image-2512
