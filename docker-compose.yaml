@@ -1,6 +1,6 @@
 services:
   imagegen-endpoint:
-    image: docker.io/gordov1su4/imagegen-endpoint:latest
+    image: docker.io/gordov1su4/imagegen-endpoint:0.2.9
     restart: unless-stopped
 
     environment:

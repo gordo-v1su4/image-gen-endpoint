@@ -14,8 +14,17 @@ FastAPI-based image generation service using Qwen-Image-2512 (GGUF) and FLUX mod
 
 ### Local Development
 ```bash
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create virtual environment
+uv venv
+
+# Activate virtual environment
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
 # Install dependencies
-pip install -e .
+uv pip install -e .
 
 # Run server
 uvicorn app.main:app --reload
