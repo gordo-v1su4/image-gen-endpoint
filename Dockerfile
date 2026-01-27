@@ -6,7 +6,7 @@ ENV PYTHONUNBUFFERED=1
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     git cmake build-essential pkg-config \
-    python3.11 python3-pip curl wget \
+    python3.10 python3-pip curl wget \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv for faster Python package management
