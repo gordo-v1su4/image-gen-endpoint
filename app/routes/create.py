@@ -12,7 +12,7 @@ from app.models import (
     ImageFormat,
     OpenAIImageData,
 )
-from app.services.image_processor import generate_placeholder_image
+from app.services.model_manager import model_manager
 from app.utils.image_utils import image_to_base64
 
 router = APIRouter()
@@ -24,14 +24,19 @@ async def create_image(request: ImageCreateRequest):
     start_time = time.time()
     
     try:
-        # For now, generate a placeholder image
-        # TODO: Integrate actual model inference
-        image = generate_placeholder_image(
+        # Generate image using the actual model
+        image = await model_manager.generate_image(
+            model_name=request.model.value,
+            prompt=request.prompt,
+            negative_prompt=request.negative_prompt or "",
             width=request.width,
             height=request.height,
-            text=f"Prompt: {request.prompt[:50]}..."
+            steps=request.steps,
+            guidance_scale=request.guidance_scale,
+            seed=request.seed,
+            use_lightning=request.use_lightning,
         )
-        
+
         image_data = image_to_base64(image)
         image_id = str(uuid.uuid4())
         processing_time = int((time.time() - start_time) * 1000)

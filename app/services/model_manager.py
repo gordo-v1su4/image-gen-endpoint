@@ -4,6 +4,7 @@ import os
 import torch
 from typing import Optional, Dict, Any
 from pathlib import Path
+from diffusers import DiffusionPipeline
 
 # Model configurations
 MODEL_CONFIGS = {
@@ -90,33 +91,71 @@ class ModelManager:
         """Load a model into memory."""
         if model_name in self.loaded_models:
             return self.loaded_models[model_name]
-        
+
         if model_name not in MODEL_CONFIGS:
             raise ValueError(f"Unknown model: {model_name}")
-        
+
         config = MODEL_CONFIGS[model_name]
-        
+
         # Check VRAM
         gpu_mem = self.get_gpu_memory()
         if gpu_mem["free"] < config.get("vram_fp8", 0):
             # Unload other models if needed
             await self.unload_all_models()
-        
-        # TODO: Implement actual model loading with diffusers
-        # This is a placeholder for the actual implementation
+
         print(f"Loading model: {model_name}")
         print(f"  Repo: {config['repo_id']}")
         print(f"  Use Lightning: {use_lightning}")
         print(f"  Device: {self.device}")
-        
-        # Placeholder - actual implementation would use diffusers
-        self.loaded_models[model_name] = {
-            "config": config,
-            "pipeline": None,  # Would be actual pipeline
-            "use_lightning": use_lightning,
-        }
-        
-        return self.loaded_models[model_name]
+
+        try:
+            # Use FP8 variant for VRAM efficiency if available
+            repo_id = config.get("fp8_repo", config["repo_id"])
+
+            # Load pipeline with optimizations
+            pipeline = DiffusionPipeline.from_pretrained(
+                repo_id,
+                torch_dtype=self.dtype,
+                variant="fp8" if "fp8_repo" in config else None,
+                use_safetensors=True,
+            )
+
+            # Move to GPU if available
+            pipeline = pipeline.to(self.device)
+
+            # Enable memory optimizations
+            if self.device == "cuda":
+                pipeline.enable_model_cpu_offload()
+                pipeline.enable_vae_slicing()
+                pipeline.enable_vae_tiling()
+
+            # Load Lightning LoRA if requested and available
+            if use_lightning and "lightning_repo" in config:
+                print(f"  Loading Lightning LoRA for {steps} steps...")
+                lora_id = config["lightning_repo"]
+                lora_file = config.get(f"lightning_{steps}step", config.get("lightning_8step"))
+
+                try:
+                    pipeline.load_lora_weights(
+                        lora_id,
+                        weight_name=lora_file
+                    )
+                    pipeline.fuse_lora(lora_scale=1.0)
+                except Exception as e:
+                    print(f"  Warning: Could not load Lightning LoRA: {e}")
+
+            self.loaded_models[model_name] = {
+                "config": config,
+                "pipeline": pipeline,
+                "use_lightning": use_lightning,
+            }
+
+            print(f"  Model loaded successfully!")
+            return self.loaded_models[model_name]
+
+        except Exception as e:
+            print(f"  Error loading model: {e}")
+            raise ValueError(f"Failed to load model {model_name}: {str(e)}")
     
     async def unload_model(self, model_name: str):
         """Unload a model from memory."""
@@ -146,11 +185,38 @@ class ModelManager:
         """Generate an image using the specified model."""
         # Load model if not loaded
         model_data = await self.load_model(model_name, use_lightning, steps)
-        
-        # TODO: Implement actual generation
-        # This is a placeholder
-        from app.services.image_processor import generate_placeholder_image
-        return generate_placeholder_image(width, height, f"Model: {model_name}")
+        pipeline = model_data["pipeline"]
+
+        if pipeline is None:
+            raise ValueError(f"Pipeline not loaded for {model_name}")
+
+        # Set random seed for reproducibility
+        if seed is not None:
+            generator = torch.Generator(device=self.device).manual_seed(seed)
+        else:
+            generator = None
+
+        print(f"Generating image with {model_name}...")
+        print(f"  Prompt: {prompt[:100]}...")
+        print(f"  Steps: {steps}, Guidance: {guidance_scale}, Size: {width}x{height}")
+
+        # Generate image
+        with torch.inference_mode():
+            result = pipeline(
+                prompt=prompt,
+                negative_prompt=negative_prompt if negative_prompt else None,
+                width=width,
+                height=height,
+                num_inference_steps=steps,
+                guidance_scale=guidance_scale,
+                generator=generator,
+            )
+
+        # Get the first generated image
+        image = result.images[0]
+        print(f"  Generation complete!")
+
+        return image
     
     async def edit_image(
         self,
