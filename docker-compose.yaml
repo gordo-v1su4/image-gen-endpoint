@@ -1,8 +1,10 @@
 
 services:
   imagegen-endpoint:
-    image: docker.io/gordov1su4/imagegen-endpoint:v0.2.17-ubuntu-base
-    pull_policy: always
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gordov1su4/imagegen-endpoint:latest
     restart: unless-stopped
 
     environment:

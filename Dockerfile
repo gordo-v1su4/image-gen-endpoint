@@ -1,24 +1,19 @@
-FROM ubuntu:22.04
-# Rebuild: 2026-01-28
-ENV DEBIAN_FRONTEND=noninteractive
-ENV PYTHONUNBUFFERED=1
-ENV PATH=/usr/local/cuda/bin:${PATH}
-ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
+FROM python:3.10-slim-bookworm
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    git cmake build-essential pkg-config \
-    python3.10 python3.10-venv python3-pip curl wget \
-    ca-certificates gnupg2 \
-    && ln -sf /usr/bin/python3.10 /usr/bin/python3 \
-    && ln -sf /usr/bin/python3.10 /usr/bin/python \
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+# Minimal system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl wget git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv for faster Python package management
+# Install uv for faster dependency installation
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:${PATH}"
 
-# Create models directory (models will be downloaded at runtime)
+# Create models directory
 RUN mkdir -p /opt/models/qwen-gguf
 
 # Copy application
@@ -28,13 +23,12 @@ COPY . /app
 # Make scripts executable
 RUN chmod +x /app/scripts/download_models.sh /app/scripts/entrypoint.sh
 
-# Install Python dependencies with uv (faster and more efficient)
+# Install Python dependencies only
 RUN python3 -m pip install --upgrade pip && \
     uv pip install --system --python python3.10 --no-cache -e .
 
-# Environment variables
-ENV GGUF_MODELS_PATH=/opt/models/qwen-gguf
-ENV PYTHONUNBUFFERED=1
+ENV GGUF_MODELS_PATH=/opt/models/qwen-gguf \
+    PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
