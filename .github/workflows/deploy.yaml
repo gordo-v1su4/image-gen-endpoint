@@ -1,62 +1,30 @@
-name: Build and Deploy
+name: Build and Deploy (tags only)
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - "v*"
   workflow_dispatch:
 
 env:
-  REGISTRY: docker.io
   IMAGE_NAME: gordov1su4/imagegen-endpoint
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Bump version
-        id: version
-        run: |
-          OUTPUT=$(python scripts/bump_version.py)
-          echo "$OUTPUT"
-          VERSION=$(echo "$OUTPUT" | grep "NEW_VERSION=" | cut -d'=' -f2)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Version set to: $VERSION"
-
-      - name: Commit version bump
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add pyproject.toml
-          git diff --staged --quiet || git commit -m "chore: bump version to ${{ steps.version.outputs.version }} [skip ci]"
-          git push
 
       - name: Free disk space
         run: |
-          echo "Disk space before cleanup:"
           df -h
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker image prune -af
           sudo docker builder prune -af
-          echo "Disk space after cleanup:"
           df -h
 
       - name: Set up Docker Buildx
@@ -68,19 +36,26 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME}"   # v0.2.20
+          VERSION="${TAG#v}"         # 0.2.20
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=latest
             type=sha,prefix=
-            type=ref,event=branch
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
@@ -96,14 +71,8 @@ jobs:
     steps:
       - name: Trigger Coolify Deployment
         run: |
-          # Add timestamp to force new deployment
           TIMESTAMP=$(date +%s)
           curl -X GET "${{ secrets.COOLIFY_WEBHOOK_URL }}?force=true&ts=$TIMESTAMP" \
             -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
             --fail --silent --show-error
-        env:
-          COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
-          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
 
-      - name: Deployment Triggered
-        run: echo "✅ Docker image pushed to latest and versioned tags. Coolify deployment triggered with force pull."
