@@ -4,6 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: image-gen-endpoint:latest
     restart: unless-stopped
 
     environment:
