@@ -4,7 +4,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: gordov1su4/imagegen-endpoint:latest
     restart: unless-stopped
 
     environment:
