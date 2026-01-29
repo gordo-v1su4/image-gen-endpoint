@@ -27,11 +27,11 @@ def download_models():
         )
         print("✓ Qwen-Image-2512 downloaded!")
         
-        # 2. Download Qwen-Image-2512 Lightning LoRA
-        print("\n[2/4] Downloading Qwen-Image-2512 Lightning LoRA...")
+        # 2. Download Qwen-Image-2512 Lightning LoRA (bf16, 24GB-friendly)
+        print("\n[2/4] Downloading Qwen-Image-2512 Lightning LoRA (bf16)...")
         hf_hub_download(
-            repo_id="lightx2v/Qwen-Image-Lightning",
-            filename="Qwen-Image-2512-Lightning/Qwen-Image-2512-Lightning-4steps-V1.0-fp32.safetensors",
+            repo_id="lightx2v/Qwen-Image-2512-Lightning",
+            filename="Qwen-Image-2512-Lightning-4steps-V1.0-bf16.safetensors",
         )
         print("✓ Qwen-Image-2512 Lightning LoRA downloaded!")
         
@@ -44,11 +44,11 @@ def download_models():
         )
         print("✓ Qwen-Image-Edit-2511 downloaded!")
         
-        # 4. Download Qwen-Image-Edit-2511 Lightning LoRA
-        print("\n[4/4] Downloading Qwen-Image-Edit-2511 Lightning LoRA...")
+        # 4. Download Qwen-Image-Edit-2511 Lightning LoRA (bf16)
+        print("\n[4/4] Downloading Qwen-Image-Edit-2511 Lightning LoRA (bf16)...")
         hf_hub_download(
             repo_id="lightx2v/Qwen-Image-Edit-2511-Lightning",
-            filename="Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors",
+            filename="Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
         )
         print("✓ Qwen-Image-Edit-2511 Lightning LoRA downloaded!")
         

@@ -1,8 +1,8 @@
 """Model management service for loading and caching AI models.
 
 Supports:
-- Qwen-Image-2512 FP8 Lightning (4-step)
-- FLUX.2 Klein 4B (4-step)
+- Qwen-Image-2512 Lightning (4-step text-to-image)
+- Qwen-Image-Edit-2511 Lightning (4-step image editing)
 """
 
 import gc
@@ -34,18 +34,17 @@ except ImportError as e:
 
 # Model configurations
 MODEL_CONFIGS = {
-    # Qwen-Image-2512 Lightning - 4-step distilled model via LoRA
-    # Base model + Lightning LoRA for fast 4-step generation
+    # Qwen-Image-2512 Lightning - 4-step, tuned for 24GB (CPU offload + bf16 LoRA)
     # See: https://github.com/ModelTC/Qwen-Image-Lightning
     "qwen-image-2512-lightning": {
         "model_type": "qwen_lightning",
         "repo_id": "Qwen/Qwen-Image-2512",
-        "lora_repo": "lightx2v/Qwen-Image-Lightning",
-        "lora_file": "Qwen-Image-2512-Lightning/Qwen-Image-2512-Lightning-4steps-V1.0-fp32.safetensors",
-        "vram": 20,  # GB (bfloat16)
+        "lora_repo": "lightx2v/Qwen-Image-2512-Lightning",
+        "lora_file": "Qwen-Image-2512-Lightning-4steps-V1.0-bf16.safetensors",
+        "vram": 14,  # GB with CPU offload (peak ~12–14GB on 24GB GPU)
         "steps": 4,  # 4-step Lightning
         "guidance_scale": 1.0,  # cfg 1.0 for Lightning
-        "description": "Qwen-Image-2512 Lightning - Fast 4-step text-to-image",
+        "description": "Qwen-Image-2512 Lightning - 4-step text-to-image (24GB-friendly)",
         "license": "apache-2.0",
         "supported_sizes": {
             "1:1": (1328, 1328),
@@ -64,8 +63,8 @@ MODEL_CONFIGS = {
         "model_type": "qwen_edit_lightning",
         "repo_id": "Qwen/Qwen-Image-Edit-2511",
         "lora_repo": "lightx2v/Qwen-Image-Edit-2511-Lightning",
-        "lora_file": "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors",
-        "vram": 20,  # GB (bfloat16)
+        "lora_file": "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
+        "vram": 14,  # GB with CPU offload (24GB-friendly)
         "steps": 4,  # 4-step Lightning
         "guidance_scale": 1.0,  # cfg 1.0 for Lightning
         "description": "Qwen-Image-Edit-2511 Lightning - Fast 4-step image editing",
@@ -231,9 +230,12 @@ class ModelManager:
             logger.info(f"Loading Lightning LoRA: {lora_path}")
             pipeline.load_lora_weights(lora_path)
         
-        pipeline = pipeline.to(self.device)
+        # CPU offload: keep peak VRAM ~12–14GB for 24GB GPUs (e.g. RTX 4090)
+        if self.device == "cuda" and hasattr(pipeline, "enable_model_cpu_offload"):
+            pipeline.enable_model_cpu_offload()
+        else:
+            pipeline = pipeline.to(self.device)
         
-        # Enable memory optimizations
         if hasattr(pipeline, "enable_vae_slicing"):
             pipeline.enable_vae_slicing()
         if hasattr(pipeline, "enable_vae_tiling"):
@@ -293,9 +295,12 @@ class ModelManager:
             logger.info(f"Loading Edit Lightning LoRA: {lora_path}")
             pipeline.load_lora_weights(lora_path)
         
-        pipeline = pipeline.to(self.device)
+        # CPU offload for 24GB VRAM (e.g. RTX 4090)
+        if self.device == "cuda" and hasattr(pipeline, "enable_model_cpu_offload"):
+            pipeline.enable_model_cpu_offload()
+        else:
+            pipeline = pipeline.to(self.device)
         
-        # Enable memory optimizations
         if hasattr(pipeline, "enable_vae_slicing"):
             pipeline.enable_vae_slicing()
         if hasattr(pipeline, "enable_vae_tiling"):
@@ -346,10 +351,10 @@ class ModelManager:
         if pipeline is None:
             raise ValueError(f"Pipeline not loaded for {model_name}")
 
-        # Set random seed
+        # Set random seed (CPU generator works with both full GPU and CPU offload)
         generator = None
         if seed is not None and TORCH_AVAILABLE:
-            generator = torch.Generator(device=self.device).manual_seed(seed)
+            generator = torch.Generator(device="cpu").manual_seed(seed)
 
         logger.info(f"Generating {width}x{height} image with {model_name} ({steps} steps)")
 
@@ -383,9 +388,47 @@ class ModelManager:
         guidance_scale: float = 1.0,
         seed: Optional[int] = None,
     ):
-        """Edit an image (placeholder - requires img2img pipeline)."""
-        logger.warning(f"Image editing not yet implemented for {model_name}")
-        return image
+        """Edit an image using Qwen-Image-Edit (e.g. qwen-image-edit-2511-lightning)."""
+        if not DIFFUSERS_AVAILABLE:
+            raise RuntimeError("diffusers not available")
+
+        config = MODEL_CONFIGS.get(model_name)
+        if not config:
+            raise ValueError(f"Unknown model: {model_name}")
+
+        model_data = await self.load_model(model_name)
+        pipeline = model_data["pipeline"]
+        if pipeline is None:
+            raise ValueError(f"Pipeline not loaded for {model_name}")
+
+        # Ensure PIL Image RGB
+        from PIL import Image as PILImage
+        if not isinstance(image, PILImage.Image):
+            image = PILImage.fromarray(image).convert("RGB") if hasattr(image, "__array__") else PILImage.open(image).convert("RGB")
+        else:
+            image = image.convert("RGB")
+
+        generator = None
+        if seed is not None and TORCH_AVAILABLE:
+            generator = torch.Generator(device="cpu").manual_seed(seed)
+
+        logger.info(f"Editing image with {model_name} ({steps} steps, cfg={guidance_scale})")
+
+        try:
+            with torch.inference_mode():
+                result = pipeline(
+                    image=image,
+                    prompt=prompt,
+                    num_inference_steps=steps,
+                    true_cfg_scale=guidance_scale,
+                    negative_prompt=" ",  # Qwen edit uses space for no negative
+                    generator=generator,
+                )
+            out = result.images[0]
+            logger.info("Edit complete")
+            return out
+        finally:
+            _clear_vram()
 
 
 # Global model manager instance
