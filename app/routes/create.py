@@ -34,7 +34,6 @@ async def create_image(request: ImageCreateRequest):
             steps=request.steps,
             guidance_scale=request.guidance_scale,
             seed=request.seed,
-            use_lightning=request.use_lightning,
         )
 
         image_data = image_to_base64(image)
