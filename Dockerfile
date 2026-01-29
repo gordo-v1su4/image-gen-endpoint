@@ -14,12 +14,13 @@ ENV PATH="${CUDA_HOME}/bin:${PATH}"
 ENV LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}"
 
 # Clone and build stable-diffusion.cpp with CUDA support
+# Use -j4 instead of -j$(nproc) to avoid OOM during CUDA compilation
 RUN git clone --recursive https://github.com/leejet/stable-diffusion.cpp /opt/stable-diffusion.cpp \
     && cd /opt/stable-diffusion.cpp \
     && mkdir -p build \
     && cd build \
     && cmake .. -DCMAKE_BUILD_TYPE=Release -DSD_CUDA=ON \
-    && cmake --build . -j"$(nproc)"
+    && cmake --build . -j4
 
 # Verify sd-cli was built
 RUN ls -la /opt/stable-diffusion.cpp/build/bin/sd-cli
