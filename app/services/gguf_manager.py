@@ -41,6 +41,10 @@ class GGUFModelManager:
         self.sd_cli = Path(os.getenv("SD_CLI_PATH", "/opt/stable-diffusion.cpp/build/bin/sd-cli"))
         self.models_path = Path(os.getenv("GGUF_MODELS_PATH", "/opt/models/qwen-gguf"))
         self.current_model = model_name
+        # Enable CPU offload for systems with limited VRAM (set OFFLOAD_TO_CPU=true)
+        self.offload_to_cpu = os.getenv("OFFLOAD_TO_CPU", "false").lower() == "true"
+        # Enable verbose output for debugging (set SD_VERBOSE=true)
+        self.verbose = os.getenv("SD_VERBOSE", "false").lower() == "true"
 
         if not self.sd_cli.exists():
             raise FileNotFoundError(f"sd-cli not found at {self.sd_cli}")
@@ -49,6 +53,8 @@ class GGUFModelManager:
         self._verify_model_files(model_name)
 
         logger.info(f"✅ GGUF Model Manager initialized with {model_name} at {self.models_path}")
+        if self.offload_to_cpu:
+            logger.info("  CPU offload enabled for lower VRAM usage")
 
     def _verify_model_files(self, model_name: str):
         """Verify that required model files exist."""
@@ -116,16 +122,24 @@ class GGUFModelManager:
             "--diffusion-model", str(self.models_path / config["diffusion_model"]),
             "--llm", str(self.models_path / config["text_encoder"]),
             "--vae", str(self.models_path / config["vae"]),
-            "-p", prompt,
-            "-o", output_path,
-            "--steps", str(steps),
-            "--sampling-method", "euler",
             "--cfg-scale", str(cfg_scale),
+            "--sampling-method", "euler",
+            "--steps", str(steps),
             "-H", str(height),
             "-W", str(width),
             "--diffusion-fa",
             "--flow-shift", str(config.get("flow_shift", 3)),
+            "-p", prompt,
+            "-o", output_path,
         ]
+
+        # Add verbose flag for debugging
+        if self.verbose:
+            cmd.append("-v")
+
+        # Add CPU offload for limited VRAM systems
+        if self.offload_to_cpu:
+            cmd.append("--offload-to-cpu")
 
         if seed is not None:
             cmd.extend(["--seed", str(seed)])
@@ -195,17 +209,25 @@ class GGUFModelManager:
             "--diffusion-model", str(self.models_path / config["diffusion_model"]),
             "--llm", str(self.models_path / config["text_encoder"]),
             "--vae", str(self.models_path / config["vae"]),
-            "-p", prompt,
-            "-i", input_path,  # Input image for editing
-            "-o", output_path,
-            "--steps", str(steps),
-            "--sampling-method", "euler",
             "--cfg-scale", str(cfg_scale),
+            "--sampling-method", "euler",
+            "--steps", str(steps),
             "-H", str(height),
             "-W", str(width),
             "--diffusion-fa",
             "--flow-shift", str(config.get("flow_shift", 3)),
+            "-i", input_path,  # Input image for editing
+            "-p", prompt,
+            "-o", output_path,
         ]
+
+        # Add verbose flag for debugging
+        if self.verbose:
+            cmd.append("-v")
+
+        # Add CPU offload for limited VRAM systems
+        if self.offload_to_cpu:
+            cmd.append("--offload-to-cpu")
 
         if seed is not None:
             cmd.extend(["--seed", str(seed)])

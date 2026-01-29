@@ -30,13 +30,13 @@ class ImageCreateRequest(BaseModel):
     """Request model for image generation."""
     prompt: str = Field(..., description="Text prompt for image generation")
     negative_prompt: Optional[str] = Field(None, description="Negative prompt")
-    model: ModelType = Field(ModelType.QWEN_2512, description="Model to use")
+    model: ModelType = Field(ModelType.QWEN_2512_GGUF, description="Model to use")
     width: int = Field(1328, ge=256, le=2048, description="Image width")
     height: int = Field(1328, ge=256, le=2048, description="Image height")
-    steps: int = Field(8, ge=1, le=50, description="Number of inference steps")
-    guidance_scale: float = Field(1.0, ge=0.0, le=20.0, description="Guidance scale")
+    steps: int = Field(40, ge=1, le=100, description="Number of inference steps")
+    guidance_scale: float = Field(2.5, ge=0.0, le=20.0, description="Guidance scale")
     seed: Optional[int] = Field(None, description="Random seed for reproducibility")
-    use_lightning: bool = Field(True, description="Use Lightning LoRA for faster inference")
+    use_lightning: bool = Field(False, description="Use Lightning LoRA (not applicable for GGUF)")
 
 
 class EditOperation(BaseModel):
@@ -49,9 +49,9 @@ class ImageEditRequest(BaseModel):
     """Request model for image editing."""
     prompt: Optional[str] = Field(None, description="Text prompt for AI editing")
     operations: List[EditOperation] = Field(..., description="List of edit operations")
-    model: ModelType = Field(ModelType.QWEN_2512, description="Model to use")
-    steps: int = Field(8, ge=1, le=50, description="Number of inference steps")
-    use_lightning: bool = Field(True, description="Use Lightning LoRA")
+    model: ModelType = Field(ModelType.QWEN_EDIT_GGUF, description="Model to use for AI editing")
+    steps: int = Field(40, ge=1, le=100, description="Number of inference steps")
+    use_lightning: bool = Field(False, description="Use Lightning LoRA (not applicable for GGUF)")
 
 
 class ImageMetadata(BaseModel):
@@ -124,3 +124,4 @@ class HealthResponse(BaseModel):
     gpu_name: Optional[str] = None
     gpu_memory_total: Optional[float] = None  # GB
     gpu_memory_used: Optional[float] = None  # GB
+    reason: Optional[str] = None  # Reason if CUDA is not available

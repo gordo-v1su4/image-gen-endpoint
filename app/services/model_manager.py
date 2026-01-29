@@ -1,108 +1,55 @@
 """Model management service for loading and caching AI models."""
 
 import os
-import torch
 import math
 from typing import Optional, Dict, Any
 from pathlib import Path
-from diffusers import DiffusionPipeline, QwenImagePipeline, FlowMatchEulerDiscreteScheduler
 
-# Try to import FLUX pipelines if available (may not exist in all diffusers versions)
+# Lazy import torch to avoid import errors if not available
 try:
-    from diffusers import FluxPipeline
-    FLUX_AVAILABLE = True
-    # Use FluxPipeline for both FLUX Klein models
-    Flux2KleinPipeline = FluxPipeline
+    import torch
+    TORCH_AVAILABLE = True
 except ImportError:
-    FLUX_AVAILABLE = False
-    Flux2KleinPipeline = DiffusionPipeline  # Fallback to generic pipeline
-    print("Warning: FluxPipeline not available in this diffusers version, using DiffusionPipeline as fallback")
+    TORCH_AVAILABLE = False
+    print("Warning: PyTorch not available, GPU features disabled")
+
+# Try to import diffusers components - these may not be available
+DIFFUSERS_AVAILABLE = False
+QwenImagePipeline = None
+FlowMatchEulerDiscreteScheduler = None
+DiffusionPipeline = None
+Flux2KleinPipeline = None
+FLUX_AVAILABLE = False
+
+try:
+    from diffusers import DiffusionPipeline, FlowMatchEulerDiscreteScheduler
+    DIFFUSERS_AVAILABLE = True
+    
+    # Try to import QwenImagePipeline (may not exist in all diffusers versions)
+    try:
+        from diffusers import QwenImagePipeline
+    except ImportError:
+        print("Warning: QwenImagePipeline not available - use GGUF models instead")
+        QwenImagePipeline = None
+    
+    # Try to import FLUX pipelines
+    try:
+        from diffusers import FluxPipeline
+        FLUX_AVAILABLE = True
+        Flux2KleinPipeline = FluxPipeline
+    except ImportError:
+        FLUX_AVAILABLE = False
+        Flux2KleinPipeline = DiffusionPipeline
+        print("Warning: FluxPipeline not available, using DiffusionPipeline as fallback")
+        
+except ImportError as e:
+    print(f"Warning: diffusers not available ({e}), only GGUF models will work")
 
 from .gguf_manager import GGUFModelManager
 
-# Model configurations
+# Model configurations - built dynamically based on available imports
 MODEL_CONFIGS = {
-    "qwen-2512": {
-        "repo_id": "Qwen/Qwen-Image-2512",
-        "pipeline_class": QwenImagePipeline,
-        "vram": 12,  # GB (bfloat16)
-        "steps": 50,
-        "guidance_scale": 1.0,
-        "description": "Qwen Image-2512 - High quality text-to-image",
-        "license": "check-repo",
-        "supported_sizes": {
-            "1:1": (1328, 1328),
-            "16:9": (1664, 928),
-            "9:16": (928, 1664),
-            "4:3": (1472, 1104),
-            "3:4": (1104, 1472),
-            "3:2": (1584, 1056),
-            "2:3": (1056, 1584),
-        },
-        "default_size": (1328, 1328),
-    },
-    "qwen-lightning-4step": {
-        "repo_id": "Qwen/Qwen-Image-2512",
-        "pipeline_class": QwenImagePipeline,
-        "lora_repo": "lightx2v/Qwen-Image-2512-Lightning",
-        "lora_file": "Qwen-Image-2512-Lightning-4steps-V1.0-bf16.safetensors",
-        "vram": 10,  # GB (bfloat16 with LoRA)
-        "steps": 4,  # Lightning optimized
-        "guidance_scale": 1.0,
-        "description": "Qwen with 4-step Lightning LoRA - Fast inference",
-        "license": "check-repo",
-        "supported_sizes": {
-            "1:1": (1328, 1328),
-            "16:9": (1664, 928),
-            "9:16": (928, 1664),
-            "4:3": (1472, 1104),
-            "3:4": (1104, 1472),
-            "3:2": (1584, 1056),
-            "2:3": (1056, 1584),
-        },
-        "default_size": (1328, 1328),
-    },
-    "qwen-lightning-8step": {
-        "repo_id": "Qwen/Qwen-Image-2512",
-        "pipeline_class": QwenImagePipeline,
-        "lora_repo": "lightx2v/Qwen-Image-2512-Lightning",
-        "lora_file": "Qwen-Image-2512-Lightning-8steps-V1.0.safetensors",
-        "vram": 10,  # GB (bfloat16 with LoRA)
-        "steps": 8,  # Lightning optimized
-        "guidance_scale": 1.0,
-        "description": "Qwen with 8-step Lightning LoRA - Balance quality/speed",
-        "license": "check-repo",
-        "supported_sizes": {
-            "1:1": (1328, 1328),
-            "16:9": (1664, 928),
-            "9:16": (928, 1664),
-            "4:3": (1472, 1104),
-            "3:4": (1104, 1472),
-            "3:2": (1584, 1056),
-            "2:3": (1056, 1584),
-        },
-        "default_size": (1328, 1328),
-    },
-    "flux-klein-4b": {
-        "repo_id": "black-forest-labs/FLUX.2-klein-4B",
-        "pipeline_class": Flux2KleinPipeline,
-        "vram": 8,  # GB (bfloat16)
-        "steps": 4,
-        "guidance_scale": 1.0,
-        "description": "FLUX.2 Klein 4B - Fast 4-step generation",
-        "license": "apache-2.0",
-        "default_size": (1024, 1024),
-    },
-    "flux-klein-9b": {
-        "repo_id": "black-forest-labs/FLUX.2-klein-9B",
-        "pipeline_class": Flux2KleinPipeline,
-        "vram": 12,  # GB (bfloat16)
-        "steps": 4,
-        "guidance_scale": 1.0,
-        "description": "FLUX.2 Klein 9B - Higher quality 4-step generation",
-        "license": "non-commercial",
-        "default_size": (1024, 1024),
-    },
+    # GGUF models (always available - use stable-diffusion.cpp, not diffusers)
     "qwen-2512-gguf": {
         "model_type": "gguf",
         "vram": 19,  # GB (actual measured: 18.7GB)
@@ -150,13 +97,19 @@ class ModelManager:
         self.models_path.mkdir(parents=True, exist_ok=True)
 
         self.loaded_models: Dict[str, Any] = {}
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.dtype = torch.bfloat16 if self.device == "cuda" else torch.float32
         self.gguf_manager = None  # Lazy load GGUF manager
+        
+        # Set device/dtype only if torch is available
+        if TORCH_AVAILABLE:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            self.dtype = torch.bfloat16 if self.device == "cuda" else torch.float32
+        else:
+            self.device = "cpu"
+            self.dtype = None
         
     def get_gpu_memory(self) -> Dict[str, float]:
         """Get current GPU memory usage."""
-        if not torch.cuda.is_available():
+        if not TORCH_AVAILABLE or not torch.cuda.is_available():
             return {"total": 0, "used": 0, "free": 0}
         
         total = torch.cuda.get_device_properties(0).total_memory / (1024**3)
@@ -320,13 +273,13 @@ class ModelManager:
         """Unload a model from memory."""
         if model_name in self.loaded_models:
             del self.loaded_models[model_name]
-            if torch.cuda.is_available():
+            if TORCH_AVAILABLE and torch.cuda.is_available():
                 torch.cuda.empty_cache()
     
     async def unload_all_models(self):
         """Unload all models from memory."""
         self.loaded_models.clear()
-        if torch.cuda.is_available():
+        if TORCH_AVAILABLE and torch.cuda.is_available():
             torch.cuda.empty_cache()
     
     async def generate_image(

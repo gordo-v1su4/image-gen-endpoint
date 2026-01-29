@@ -21,9 +21,12 @@ def get_gpu_info() -> dict:
                 "gpu_memory_total": round(gpu_memory_total, 2),
                 "gpu_memory_used": round(gpu_memory_used, 2),
             }
-    except Exception:
-        pass
-    return {"cuda_available": False}
+        else:
+            return {"cuda_available": False, "reason": "CUDA not available"}
+    except ImportError:
+        return {"cuda_available": False, "reason": "PyTorch not installed"}
+    except Exception as e:
+        return {"cuda_available": False, "reason": str(e)}
 
 
 @router.get("/health", response_model=HealthResponse)
