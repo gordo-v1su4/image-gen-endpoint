@@ -19,6 +19,7 @@ dependencies = [
     "huggingface-hub>=0.20.0",
     "bitsandbytes>=0.42.0",
     "optimum>=1.16.0",
+    "peft>=0.10.0",
 ]
 
 [project.optional-dependencies]

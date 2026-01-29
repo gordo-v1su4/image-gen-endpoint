@@ -55,12 +55,16 @@ ENV HF_HOME=/opt/models/huggingface
 WORKDIR /app
 COPY . /app
 
-# Make scripts executable
-RUN chmod +x /app/scripts/entrypoint.sh /app/scripts/download_models.py
+# Fix line endings and make scripts executable
+RUN sed -i 's/\r$//' /app/scripts/entrypoint.sh /app/scripts/download_models.py && \
+    chmod +x /app/scripts/entrypoint.sh /app/scripts/download_models.py
 
 # Install Python dependencies using uv (creates venv at .venv)
-RUN uv sync --frozen --no-cache
+RUN uv sync --no-cache
 ENV PATH="/app/.venv/bin:${PATH}"
+
+# Verify peft is installed (required for LoRA)
+RUN python -c "import peft; print('peft version:', peft.__version__)"
 
 # Pre-download models during build (optional, ~40GB total)
 # Set DOWNLOAD_MODELS=false to skip and download at runtime instead

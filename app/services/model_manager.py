@@ -230,9 +230,19 @@ class ModelManager:
             logger.info(f"Loading Lightning LoRA: {lora_path}")
             pipeline.load_lora_weights(lora_path)
         
-        # CPU offload: keep peak VRAM ~12–14GB for 24GB GPUs (e.g. RTX 4090)
-        if self.device == "cuda" and hasattr(pipeline, "enable_model_cpu_offload"):
-            pipeline.enable_model_cpu_offload()
+        # Move to GPU - use CPU offload only for < 24GB VRAM
+        if self.device == "cuda":
+            gpu_mem = self.get_gpu_memory()
+            if gpu_mem["total"] >= 24:
+                # Full GPU for 24GB+ (RTX 4090, 5090, etc)
+                logger.info(f"GPU has {gpu_mem['total']:.1f}GB VRAM - using full GPU")
+                pipeline = pipeline.to(self.device)
+            elif hasattr(pipeline, "enable_model_cpu_offload"):
+                # CPU offload for < 24GB
+                logger.info(f"GPU has {gpu_mem['total']:.1f}GB VRAM - using CPU offload")
+                pipeline.enable_model_cpu_offload()
+            else:
+                pipeline = pipeline.to(self.device)
         else:
             pipeline = pipeline.to(self.device)
         
@@ -295,9 +305,17 @@ class ModelManager:
             logger.info(f"Loading Edit Lightning LoRA: {lora_path}")
             pipeline.load_lora_weights(lora_path)
         
-        # CPU offload for 24GB VRAM (e.g. RTX 4090)
-        if self.device == "cuda" and hasattr(pipeline, "enable_model_cpu_offload"):
-            pipeline.enable_model_cpu_offload()
+        # Move to GPU - use CPU offload only for < 24GB VRAM
+        if self.device == "cuda":
+            gpu_mem = self.get_gpu_memory()
+            if gpu_mem["total"] >= 24:
+                logger.info(f"GPU has {gpu_mem['total']:.1f}GB VRAM - using full GPU")
+                pipeline = pipeline.to(self.device)
+            elif hasattr(pipeline, "enable_model_cpu_offload"):
+                logger.info(f"GPU has {gpu_mem['total']:.1f}GB VRAM - using CPU offload")
+                pipeline.enable_model_cpu_offload()
+            else:
+                pipeline = pipeline.to(self.device)
         else:
             pipeline = pipeline.to(self.device)
         
