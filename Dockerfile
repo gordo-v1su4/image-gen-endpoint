@@ -30,8 +30,8 @@ RUN ARCH=$(uname -m) && \
         echo "Unsupported architecture: $ARCH" && exit 1; \
     fi && \
     mkdir -p /root/.local/bin && \
-    curl -LsSf https://github.com/astral-sh/uv/releases/latest/download/uv-${UV_ARCH}.tar.gz | tar -xz -C /root/.local/bin && \
-    chmod +x /root/.local/bin/uv
+    curl -LsSf https://github.com/astral-sh/uv/releases/latest/download/uv-${UV_ARCH}.tar.gz | tar -xz --strip-components=1 -C /root/.local/bin && \
+    chmod +x /root/.local/bin/uv /root/.local/bin/uvx
 ENV PATH="/root/.local/bin:${PATH}"
 
 # Install Python 3.10 using uv
@@ -58,8 +58,9 @@ COPY . /app
 # Make scripts executable
 RUN chmod +x /app/scripts/entrypoint.sh /app/scripts/download_models.py
 
-# Install Python dependencies using uv
-RUN uv pip install --system --python 3.10 --no-cache -e .
+# Install Python dependencies using uv (creates venv at .venv)
+RUN uv sync --frozen --no-cache
+ENV PATH="/app/.venv/bin:${PATH}"
 
 # Pre-download models during build (optional, ~40GB total)
 # Set DOWNLOAD_MODELS=false to skip and download at runtime instead
