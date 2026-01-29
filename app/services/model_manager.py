@@ -35,7 +35,10 @@ except ImportError as e:
 
 # Model configurations
 MODEL_CONFIGS = {
-    "qwen-2512-lightning": {
+    # Qwen FP8 Lightning - Pre-baked 4-step model from lightx2v
+    # File: qwen_image_2512_fp8_e4m3fn_scaled_4steps_v1.0.safetensors (20.5 GB)
+    # This is NOT a LoRA - it's the full model with Lightning distillation baked in
+    "qwen-2512-fp8-4step": {
         "model_type": "qwen_lightning",
         "repo_id": "lightx2v/Qwen-Image-2512-Lightning",
         "diffusion_file": "qwen_image_2512_fp8_e4m3fn_scaled_4steps_v1.0.safetensors",
@@ -44,7 +47,7 @@ MODEL_CONFIGS = {
         "vram": 20,  # GB
         "steps": 4,
         "guidance_scale": 1.0,
-        "description": "Qwen-Image-2512 FP8 Lightning - 4-step fast generation",
+        "description": "Qwen-Image-2512 FP8 (e4m3fn) with 4-step Lightning distillation baked in",
         "license": "apache-2.0",
         "supported_sizes": {
             "1:1": (1328, 1328),

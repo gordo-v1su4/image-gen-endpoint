@@ -13,10 +13,23 @@ Production-ready FastAPI image generation service powered by **diffusers** with 
 
 ## Available Models
 
-| Model | Steps | VRAM | Resolution | Description |
-|-------|-------|------|------------|-------------|
-| `qwen-2512-lightning` | 4 | ~20GB | Up to 1664x1664 | Qwen FP8 Lightning (default) |
-| `flux-klein-4b` | 4 | ~13GB | Up to 1280x1280 | FLUX.2 Klein distilled |
+| Model ID | Steps | VRAM | Description |
+|----------|-------|------|-------------|
+| `qwen-2512-fp8-4step` | 4 | ~20GB | Qwen FP8 with 4-step distillation (default) |
+| `flux-klein-4b` | 4 | ~13GB | FLUX.2 Klein 4B distilled |
+
+### Model Details
+
+**qwen-2512-fp8-4step:**
+- **Source:** [lightx2v/Qwen-Image-2512-Lightning](https://huggingface.co/lightx2v/Qwen-Image-2512-Lightning)
+- **File:** `qwen_image_2512_fp8_e4m3fn_scaled_4steps_v1.0.safetensors` (20.5 GB)
+- **Format:** FP8 (e4m3fn) quantized with 4-step Lightning distillation baked in
+- **Max Resolution:** 1664x1664
+
+**flux-klein-4b:**
+- **Source:** [black-forest-labs/FLUX.2-klein-4B](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B)
+- **Format:** Native 4-step distilled model
+- **Max Resolution:** 1280x1280
 
 ## Supported Resolutions
 
@@ -85,7 +98,7 @@ curl -X POST https://your-server.com/v1/images/create \
 {
   "data": [{"b64_json": "...base64 encoded image..."}],
   "created": 1706500000,
-  "model": "qwen-2512-lightning"
+  "model": "qwen-2512-fp8-4step"
 }
 ```
 

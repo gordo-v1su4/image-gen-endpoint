@@ -58,7 +58,7 @@ Models are defined in `MODEL_CONFIGS` in `model_manager.py`. Each entry specifie
 - Supported resolutions
 
 Current models:
-- `qwen-2512-lightning` - Qwen FP8 Lightning (4-step, default)
+- `qwen-2512-fp8-4step` - Qwen FP8 4-step (lightx2v/qwen_image_2512_fp8_e4m3fn_scaled_4steps_v1.0.safetensors)
 - `flux-klein-4b` - FLUX.2 Klein 4B distilled (4-step)
 
 ### Image I/O Pattern
