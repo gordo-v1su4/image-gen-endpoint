@@ -3,6 +3,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Set to "false" to skip pre-downloading models during build
+        DOWNLOAD_MODELS: "true"
     image: image-gen-endpoint:latest
     restart: unless-stopped
 
@@ -15,7 +18,7 @@ services:
 
     volumes:
       # Persistent storage for HuggingFace/diffusers models
-      # Qwen FP8 Lightning (~28GB) + FLUX Klein 4B (~10GB)
+      # Qwen-Image-2512 (~20GB) + Lightning LoRA
       - hf_cache:/opt/models/huggingface
 
     deploy:

@@ -1,6 +1,9 @@
 # Diffusers-only image generation API
-# Supports: Qwen FP8 Lightning (4-step), FLUX Klein 4B (4-step)
+# Supports: Qwen-Image-2512 Lightning (4-step)
 FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04
+
+# Build args
+ARG DOWNLOAD_MODELS=true
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
@@ -26,20 +29,30 @@ ENV PATH="/root/.local/bin:${PATH}"
 # Create models directory
 RUN mkdir -p /opt/models/huggingface
 
+# Set HF cache directory early
+ENV HF_HOME=/opt/models/huggingface
+
 # Copy application
 WORKDIR /app
 COPY . /app
 
 # Make scripts executable
-RUN chmod +x /app/scripts/entrypoint.sh
+RUN chmod +x /app/scripts/entrypoint.sh /app/scripts/download_models.py
 
 # Install Python dependencies
 RUN python3 -m pip install --upgrade pip && \
     uv pip install --system --python python3.10 --no-cache -e .
 
-# Environment variables
-ENV HF_HOME=/opt/models/huggingface \
-    PYTHONUNBUFFERED=1
+# Pre-download models during build (optional, ~20GB)
+# Set DOWNLOAD_MODELS=false to skip and download at runtime instead
+RUN if [ "$DOWNLOAD_MODELS" = "true" ]; then \
+        echo "Pre-downloading models..." && \
+        python3 /app/scripts/download_models.py; \
+    else \
+        echo "Skipping model download (will download on first use)"; \
+    fi
+
+ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
