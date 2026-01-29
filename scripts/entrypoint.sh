@@ -2,9 +2,8 @@
 set -e
 
 echo "🚀 Starting Image Generation Endpoint..."
-
-# Download models if needed (on first run)
-/app/scripts/download_models.sh
+echo "📦 Models will be downloaded from HuggingFace on first use"
+echo "🔧 Using diffusers with CUDA acceleration"
 
 # Start the application
 echo "🌐 Starting FastAPI server..."

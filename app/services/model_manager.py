@@ -1,63 +1,67 @@
-"""Model management service for loading and caching AI models."""
+"""Model management service for loading and caching AI models.
 
-import os
+Supports:
+- Qwen-Image-2512 FP8 Lightning (4-step)
+- FLUX.2 Klein 4B (4-step)
+"""
+
+import gc
 import math
+import os
 from typing import Optional, Dict, Any
 from pathlib import Path
+import logging
 
-# Lazy import torch to avoid import errors if not available
+logger = logging.getLogger(__name__)
+
+# Import torch
 try:
     import torch
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
-    print("Warning: PyTorch not available, GPU features disabled")
+    logger.warning("PyTorch not available")
 
-# Try to import diffusers components - these may not be available
-DIFFUSERS_AVAILABLE = False
-QwenImagePipeline = None
-FlowMatchEulerDiscreteScheduler = None
-DiffusionPipeline = None
-Flux2KleinPipeline = None
-FLUX_AVAILABLE = False
-
+# Import diffusers
 try:
-    from diffusers import DiffusionPipeline, FlowMatchEulerDiscreteScheduler
+    from diffusers import FluxPipeline, DiffusionPipeline
+    from huggingface_hub import hf_hub_download
     DIFFUSERS_AVAILABLE = True
-    
-    # Try to import QwenImagePipeline (may not exist in all diffusers versions)
-    try:
-        from diffusers import QwenImagePipeline
-    except ImportError:
-        print("Warning: QwenImagePipeline not available - use GGUF models instead")
-        QwenImagePipeline = None
-    
-    # Try to import FLUX pipelines
-    try:
-        from diffusers import FluxPipeline
-        FLUX_AVAILABLE = True
-        Flux2KleinPipeline = FluxPipeline
-    except ImportError:
-        FLUX_AVAILABLE = False
-        Flux2KleinPipeline = DiffusionPipeline
-        print("Warning: FluxPipeline not available, using DiffusionPipeline as fallback")
-        
 except ImportError as e:
-    print(f"Warning: diffusers not available ({e}), only GGUF models will work")
+    DIFFUSERS_AVAILABLE = False
+    FluxPipeline = None
+    DiffusionPipeline = None
+    logger.warning(f"diffusers not available: {e}")
 
-from .gguf_manager import GGUFModelManager
-
-# Model configurations - built dynamically based on available imports
+# Model configurations
 MODEL_CONFIGS = {
-    # Flux models (use diffusers library)
-    "flux-klein-4b": {
-        "model_type": "diffusers",
-        "repo_id": "black-forest-labs/FLUX.2-klein-4B",
-        "pipeline_class": Flux2KleinPipeline,
-        "vram": 13,  # GB (bfloat16) - fits on RTX 4090
-        "steps": 4,  # Native 4-step generation
+    "qwen-2512-lightning": {
+        "model_type": "qwen_lightning",
+        "repo_id": "lightx2v/Qwen-Image-2512-Lightning",
+        "diffusion_file": "qwen_image_2512_fp8_e4m3fn_scaled_4steps_v1.0.safetensors",
+        "text_encoder_repo": "Qwen/Qwen2.5-VL-7B-Instruct",
+        "vae_repo": "Qwen/Qwen-Image-2512",
+        "vram": 20,  # GB
+        "steps": 4,
         "guidance_scale": 1.0,
-        "description": "FLUX.2 Klein 4B - Fast 4-step generation, Apache 2.0 license",
+        "description": "Qwen-Image-2512 FP8 Lightning - 4-step fast generation",
+        "license": "apache-2.0",
+        "supported_sizes": {
+            "1:1": (1328, 1328),
+            "16:9": (1664, 928),
+            "9:16": (928, 1664),
+            "4:3": (1472, 1104),
+            "3:4": (1104, 1472),
+        },
+        "default_size": (1328, 1328),
+    },
+    "flux-klein-4b": {
+        "model_type": "flux",
+        "repo_id": "black-forest-labs/FLUX.2-klein-4B",
+        "vram": 13,  # GB
+        "steps": 4,
+        "guidance_scale": 1.0,
+        "description": "FLUX.2 Klein 4B - Fast 4-step distilled generation",
         "license": "apache-2.0",
         "supported_sizes": {
             "1:1": (1024, 1024),
@@ -68,63 +72,37 @@ MODEL_CONFIGS = {
         },
         "default_size": (1024, 1024),
     },
-    # GGUF models (always available - use stable-diffusion.cpp, not diffusers)
-    "qwen-2512-gguf": {
-        "model_type": "gguf",
-        "vram": 19,  # GB (actual measured: 18.7GB)
-        "steps": 40,
-        "guidance_scale": 2.5,
-        "description": "Qwen-2512 GGUF Q4_K_M - Optimized for 24GB VRAM (RTX 4090)",
-        "license": "apache-2.0",
-        "supported_sizes": {
-            "1:1": (1328, 1328),
-            "16:9": (1664, 928),
-            "9:16": (928, 1664),
-            "4:3": (1472, 1104),
-            "3:4": (1104, 1472),
-            "3:2": (1584, 1056),
-            "2:3": (1056, 1584),
-        },
-        "default_size": (1328, 1328),
-    },
-    "qwen-edit-gguf": {
-        "model_type": "gguf",
-        "vram": 19,  # GB (similar to generation model)
-        "steps": 40,
-        "guidance_scale": 4.0,
-        "description": "Qwen-Image-Edit-2511 GGUF Q4_K_M - AI-powered image editing",
-        "license": "apache-2.0",
-        "supported_sizes": {
-            "1:1": (1328, 1328),
-            "16:9": (1664, 928),
-            "9:16": (928, 1664),
-            "4:3": (1472, 1104),
-            "3:4": (1104, 1472),
-            "3:2": (1584, 1056),
-            "2:3": (1056, 1584),
-        },
-        "default_size": (1328, 1328),
-    },
 }
+
+
+def _clear_vram():
+    """Clear VRAM after generation."""
+    if TORCH_AVAILABLE and torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+        logger.info("VRAM cleared")
+    gc.collect()
 
 
 class ModelManager:
     """Manages loading, caching, and switching between AI models."""
     
     def __init__(self, models_path: Optional[str] = None):
-        self.models_path = Path(models_path or os.environ.get("MODELS_PATH", "./models"))
+        self.models_path = Path(models_path or os.environ.get("HF_HOME", "/opt/models/huggingface"))
         self.models_path.mkdir(parents=True, exist_ok=True)
 
         self.loaded_models: Dict[str, Any] = {}
-        self.gguf_manager = None  # Lazy load GGUF manager
+        self.current_model: Optional[str] = None
         
-        # Set device/dtype only if torch is available
+        # Set device/dtype
         if TORCH_AVAILABLE:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
             self.dtype = torch.bfloat16 if self.device == "cuda" else torch.float32
         else:
             self.device = "cpu"
             self.dtype = None
+        
+        logger.info(f"ModelManager initialized: device={self.device}")
         
     def get_gpu_memory(self) -> Dict[str, float]:
         """Get current GPU memory usage."""
@@ -139,62 +117,27 @@ class ModelManager:
             "free": round(total - used, 2),
         }
     
-    def is_model_downloaded(self, model_name: str) -> bool:
-        """Check if model files exist locally."""
-        if model_name not in MODEL_CONFIGS:
-            return False
-        
-        model_dir = self.models_path / model_name
-        return model_dir.exists() and any(model_dir.iterdir())
-    
     def get_model_status(self, model_name: str) -> str:
-        """Get model status: ready, loading, not_loaded, unknown."""
+        """Get model status."""
         if model_name in self.loaded_models:
             return "ready"
-        elif self.is_model_downloaded(model_name):
-            return "not_loaded"
-        else:
-            return "not_downloaded"
+        return "not_loaded"
     
     def list_models(self) -> list:
-        """List all available models with their status."""
+        """List all available models."""
         models = []
         for name, config in MODEL_CONFIGS.items():
             models.append({
                 "name": name,
                 "status": self.get_model_status(name),
-                "vram_required": config.get("vram_fp8", 0),
+                "vram_required": config.get("vram", 0),
+                "steps": config.get("steps", 4),
                 "license": config.get("license", "check-repo"),
+                "description": config.get("description", ""),
             })
         return models
 
-    def _verify_pipeline_components(self, pipeline, model_name: str):
-        """Verify that pipeline has all necessary components."""
-        print(f"  Verifying components...")
-
-        # Check for text encoder (CLIP/T5)
-        if hasattr(pipeline, 'text_encoder') and pipeline.text_encoder is not None:
-            print(f"    ✓ Text Encoder: {type(pipeline.text_encoder).__name__}")
-        elif hasattr(pipeline, 'text_encoder_2') and pipeline.text_encoder_2 is not None:
-            print(f"    ✓ Text Encoder 2: {type(pipeline.text_encoder_2).__name__}")
-
-        # Check for VAE
-        if hasattr(pipeline, 'vae') and pipeline.vae is not None:
-            print(f"    ✓ VAE: {type(pipeline.vae).__name__}")
-
-        # Check for diffusion model (U-Net or Transformer)
-        if hasattr(pipeline, 'unet') and pipeline.unet is not None:
-            print(f"    ✓ U-Net: {type(pipeline.unet).__name__}")
-        elif hasattr(pipeline, 'transformer') and pipeline.transformer is not None:
-            print(f"    ✓ Transformer: {type(pipeline.transformer).__name__}")
-
-        # Check for scheduler
-        if hasattr(pipeline, 'scheduler') and pipeline.scheduler is not None:
-            print(f"    ✓ Scheduler: {type(pipeline.scheduler).__name__}")
-
-        print(f"  All critical components verified!")
-
-    async def load_model(self, model_name: str, use_lightning: bool = True, steps: int = 8):
+    async def load_model(self, model_name: str):
         """Load a model into memory."""
         if model_name in self.loaded_models:
             return self.loaded_models[model_name]
@@ -203,163 +146,130 @@ class ModelManager:
             raise ValueError(f"Unknown model: {model_name}")
 
         config = MODEL_CONFIGS[model_name]
+        
+        # Unload current model if different
+        if self.current_model and self.current_model != model_name:
+            await self.unload_model(self.current_model)
 
-        # Check VRAM
-        gpu_mem = self.get_gpu_memory()
-        if gpu_mem["free"] < config.get("vram_fp8", 0):
-            # Unload other models if needed
-            await self.unload_all_models()
-
-        print(f"Loading model: {model_name}")
-        print(f"  Repo: {config['repo_id']}")
-        print(f"  Use Lightning: {use_lightning}")
-        print(f"  Device: {self.device}")
-
+        logger.info(f"Loading model: {model_name}")
+        
         try:
-            # Get the correct pipeline class
-            pipeline_class = config["pipeline_class"]
-            repo_id = config["repo_id"]
-
-            # Load pipeline with correct class
-            load_kwargs = {
-                "torch_dtype": self.dtype,
-            }
-
-            # Special setup for QwenImagePipeline
-            if pipeline_class == QwenImagePipeline:
-                print(f"  Setting up custom FlowMatchEulerDiscreteScheduler for Qwen...")
-                scheduler_config = {
-                    "base_image_seq_len": 256,
-                    "base_shift": math.log(3),
-                    "invert_sigmas": False,
-                    "max_image_seq_len": 8192,
-                    "max_shift": math.log(3),
-                    "num_train_timesteps": 1000,
-                    "shift": 1.0,
-                    "shift_terminal": None,
-                    "stochastic_sampling": False,
-                    "time_shift_type": "exponential",
-                    "use_beta_sigmas": False,
-                    "use_dynamic_shifting": True,
-                    "use_exponential_sigmas": False,
-                    "use_karras_sigmas": False,
-                }
-                scheduler = FlowMatchEulerDiscreteScheduler.from_config(scheduler_config)
-                load_kwargs["scheduler"] = scheduler
-
-            print(f"  Loading with {pipeline_class.__name__}...")
-            pipeline = pipeline_class.from_pretrained(repo_id, **load_kwargs)
-
-            # Load Lightning LoRA if specified
-            if "lora_repo" in config and "lora_file" in config:
-                print(f"  Loading Lightning LoRA from {config['lora_repo']}...")
-                print(f"  LoRA file: {config['lora_file']}")
-                pipeline.load_lora_weights(
-                    config["lora_repo"],
-                    weight_name=config["lora_file"],
-                )
-                pipeline.fuse_lora()
-                print(f"  ✓ Lightning LoRA loaded and fused")
-
-            # Move to device
-            pipeline = pipeline.to(self.device)
-
-            # Enable memory optimizations
-            if self.device == "cuda":
-                # Enable VAE optimizations if available
-                if hasattr(pipeline, "enable_vae_slicing"):
-                    pipeline.enable_vae_slicing()
-                if hasattr(pipeline, "enable_vae_tiling"):
-                    pipeline.enable_vae_tiling()
-
-            # Verify all components loaded correctly
-            self._verify_pipeline_components(pipeline, model_name)
+            if config["model_type"] == "flux":
+                pipeline = await self._load_flux(config)
+            elif config["model_type"] == "qwen_lightning":
+                pipeline = await self._load_qwen_lightning(config)
+            else:
+                raise ValueError(f"Unknown model type: {config['model_type']}")
 
             self.loaded_models[model_name] = {
                 "config": config,
                 "pipeline": pipeline,
-                "use_lightning": use_lightning,
             }
-
-            print(f"  Model loaded successfully!")
+            self.current_model = model_name
+            
+            logger.info(f"Model {model_name} loaded successfully")
             return self.loaded_models[model_name]
 
         except Exception as e:
-            print(f"  Error loading model: {e}")
+            logger.error(f"Error loading model {model_name}: {e}")
             raise ValueError(f"Failed to load model {model_name}: {str(e)}")
+
+    async def _load_flux(self, config: dict):
+        """Load FLUX Klein model."""
+        logger.info(f"Loading FLUX from {config['repo_id']}")
+        
+        pipeline = FluxPipeline.from_pretrained(
+            config["repo_id"],
+            torch_dtype=self.dtype,
+        )
+        pipeline = pipeline.to(self.device)
+        
+        # Enable memory optimizations
+        if hasattr(pipeline, "enable_vae_slicing"):
+            pipeline.enable_vae_slicing()
+        if hasattr(pipeline, "enable_vae_tiling"):
+            pipeline.enable_vae_tiling()
+            
+        return pipeline
+
+    async def _load_qwen_lightning(self, config: dict):
+        """Load Qwen FP8 Lightning model."""
+        logger.info(f"Loading Qwen Lightning from {config['repo_id']}")
+        
+        # Download the pre-baked FP8 Lightning model
+        model_path = hf_hub_download(
+            repo_id=config["repo_id"],
+            filename=config["diffusion_file"],
+        )
+        
+        # Load using DiffusionPipeline with single_file
+        pipeline = DiffusionPipeline.from_single_file(
+            model_path,
+            torch_dtype=self.dtype,
+        )
+        pipeline = pipeline.to(self.device)
+        
+        # Enable memory optimizations
+        if hasattr(pipeline, "enable_vae_slicing"):
+            pipeline.enable_vae_slicing()
+        if hasattr(pipeline, "enable_vae_tiling"):
+            pipeline.enable_vae_tiling()
+            
+        return pipeline
     
     async def unload_model(self, model_name: str):
         """Unload a model from memory."""
         if model_name in self.loaded_models:
             del self.loaded_models[model_name]
-            if TORCH_AVAILABLE and torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            if self.current_model == model_name:
+                self.current_model = None
+            _clear_vram()
+            logger.info(f"Model {model_name} unloaded")
     
     async def unload_all_models(self):
         """Unload all models from memory."""
         self.loaded_models.clear()
-        if TORCH_AVAILABLE and torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        self.current_model = None
+        _clear_vram()
+        logger.info("All models unloaded")
     
     async def generate_image(
         self,
         model_name: str,
         prompt: str,
         negative_prompt: str = "",
-        width: int = 1328,
-        height: int = 1328,
-        steps: int = 8,
+        width: int = 1024,
+        height: int = 1024,
+        steps: int = 4,
         guidance_scale: float = 1.0,
         seed: Optional[int] = None,
-        use_lightning: bool = True,
+        **kwargs,
     ):
         """Generate an image using the specified model."""
-        # Check if this is a GGUF model
+        if not DIFFUSERS_AVAILABLE:
+            raise RuntimeError("diffusers not available")
+            
         config = MODEL_CONFIGS.get(model_name)
-        if config and config.get("model_type") == "gguf":
-            if self.gguf_manager is None:
-                self.gguf_manager = GGUFModelManager()
-            return await self.gguf_manager.generate_image(
-                prompt=prompt,
-                width=width,
-                height=height,
-                steps=steps,
-                cfg_scale=guidance_scale,
-                seed=seed,
-            )
+        if not config:
+            raise ValueError(f"Unknown model: {model_name}")
 
         # Load model if not loaded
-        model_data = await self.load_model(model_name, use_lightning, steps)
+        model_data = await self.load_model(model_name)
         pipeline = model_data["pipeline"]
 
         if pipeline is None:
             raise ValueError(f"Pipeline not loaded for {model_name}")
 
-        # Set random seed for reproducibility
-        if seed is not None:
+        # Set random seed
+        generator = None
+        if seed is not None and TORCH_AVAILABLE:
             generator = torch.Generator(device=self.device).manual_seed(seed)
-        else:
-            generator = None
 
-        print(f"Generating image with {model_name}...")
-        print(f"  Prompt: {prompt[:100]}...")
-        print(f"  Steps: {steps}, Guidance: {guidance_scale}, Size: {width}x{height}")
+        logger.info(f"Generating {width}x{height} image with {model_name} ({steps} steps)")
 
-        # Generate image
-        with torch.inference_mode():
-            # QwenImagePipeline uses true_cfg_scale parameter
-            if isinstance(pipeline, QwenImagePipeline):
-                result = pipeline(
-                    prompt=prompt,
-                    negative_prompt=negative_prompt if negative_prompt else None,
-                    width=width,
-                    height=height,
-                    num_inference_steps=steps,
-                    true_cfg_scale=guidance_scale,
-                    guidance_scale=1.0,
-                    generator=generator,
-                )
-            else:
+        try:
+            # Generate image
+            with torch.inference_mode():
                 result = pipeline(
                     prompt=prompt,
                     negative_prompt=negative_prompt if negative_prompt else None,
@@ -370,51 +280,27 @@ class ModelManager:
                     generator=generator,
                 )
 
-        # Get the first generated image
-        image = result.images[0]
-        print(f"  Generation complete!")
+            image = result.images[0]
+            logger.info("Generation complete")
+            return image
+            
+        finally:
+            # Clear VRAM after generation
+            _clear_vram()
 
-        return image
-    
     async def edit_image(
         self,
         model_name: str,
         image,
         prompt: str,
-        steps: int = 40,
-        guidance_scale: float = 4.0,
+        steps: int = 4,
+        guidance_scale: float = 1.0,
         seed: Optional[int] = None,
     ):
-        """Edit an image using the specified model.
-
-        Args:
-            model_name: Model to use (use 'qwen-edit-gguf' for AI editing)
-            image: PIL Image to edit
-            prompt: Text prompt describing the edit
-            steps: Number of inference steps
-            guidance_scale: Classifier-free guidance scale
-            seed: Random seed for reproducibility
-
-        Returns:
-            Edited PIL Image
-        """
-        config = MODEL_CONFIGS.get(model_name)
-
-        # Use GGUF manager for GGUF models
-        if config and config.get("model_type") == "gguf":
-            if self.gguf_manager is None:
-                self.gguf_manager = GGUFModelManager()
-            return await self.gguf_manager.edit_image(
-                prompt=prompt,
-                input_image=image,
-                steps=steps,
-                cfg_scale=guidance_scale,
-                seed=seed,
-            )
-
-        # Fallback for non-GGUF models (not fully implemented)
-        print(f"Warning: AI editing not fully supported for {model_name}")
+        """Edit an image (placeholder - requires img2img pipeline)."""
+        logger.warning(f"Image editing not yet implemented for {model_name}")
         return image
+
 
 # Global model manager instance
 model_manager = ModelManager()

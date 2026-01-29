@@ -7,30 +7,15 @@ services:
     restart: unless-stopped
 
     environment:
-      # GGUF model paths
-      - GGUF_MODELS_PATH=/opt/models/qwen-gguf
-      - SD_CLI_PATH=/opt/stable-diffusion.cpp/build/bin/sd-cli
-      # HuggingFace cache for diffusers models (FLUX)
+      # HuggingFace cache for diffusers models
       - HF_HOME=/opt/models/huggingface
-      # Optional: Enable CPU offload for systems with limited VRAM
-      - OFFLOAD_TO_CPU=false
-      # Optional: Enable verbose output for debugging
-      - SD_VERBOSE=false
       # CUDA settings
       - CUDA_VISIBLE_DEVICES=0
       - NVIDIA_VISIBLE_DEVICES=all
-      # Download models on first start
-      - DOWNLOAD_MODELS=true
 
     volumes:
-      # Persistent storage for GGUF models (~31GB needed)
-      # Models downloaded automatically on first container start:
-      # - qwen-image-2512-Q4_K_M.gguf (~13GB)
-      # - qwen-image-edit-2511-Q4_K_M.gguf (~13GB)
-      # - Qwen2.5-VL-7B-Instruct-UD-Q4_K_XL.gguf (~4.5GB)
-      # - qwen_image_vae.safetensors (~243MB)
-      - gguf_models:/opt/models/qwen-gguf
-      # Persistent storage for HuggingFace/diffusers models (FLUX ~10GB)
+      # Persistent storage for HuggingFace/diffusers models
+      # Qwen FP8 Lightning (~28GB) + FLUX Klein 4B (~10GB)
       - hf_cache:/opt/models/huggingface
 
     deploy:
@@ -46,7 +31,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 300s  # 5 minutes for model download on first start
+      start_period: 120s  # 2 minutes for initial model loading
 
     logging:
       driver: "json-file"
@@ -55,9 +40,5 @@ services:
         max-file: "3"
 
 volumes:
-  gguf_models:
-    # Map to host path in Coolify for persistent storage
-    # Example: /data/imagegen-gguf-models
   hf_cache:
-    # HuggingFace cache for FLUX and other diffusers models
-    # Example: /data/imagegen-hf-cache
+    # HuggingFace cache for all diffusers models

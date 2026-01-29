@@ -1,34 +1,38 @@
 # Image Generation API
 
-Production-ready FastAPI image generation service powered by **Qwen-Image-2512 GGUF** and **FLUX.2 Klein 4B** models.
+Production-ready FastAPI image generation service powered by **diffusers** with 4-step distilled models.
 
 ## Features
 
-- **Real AI image generation** using quantized GGUF models via stable-diffusion.cpp
-- **FLUX.2 Klein 4B** support via diffusers (4-step generation)
-- **AI-powered image editing** with Qwen-Image-Edit-2511
-- **Optimized for RTX 4090** (24GB VRAM)
+- **4-step fast generation** with distilled/Lightning models
+- **Qwen-Image-2512 FP8 Lightning** - High quality, 4 steps
+- **FLUX.2 Klein 4B** - Fast distilled generation, 4 steps
 - **OpenAI-compatible API** format
-- **Multiple aspect ratios**: 1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3
-- **VRAM management**: Auto-clearing between generations, queue lock for sequential processing
+- **Automatic model caching** via HuggingFace Hub
+- **VRAM management** with auto-clearing between generations
 
 ## Available Models
 
-| Model | Type | VRAM | Steps | Description |
-|-------|------|------|-------|-------------|
-| `qwen-2512-gguf` | GGUF | ~19GB | 40 | High-quality text-to-image (default) |
-| `qwen-edit-gguf` | GGUF | ~19GB | 40 | AI-powered image editing |
-| `flux-klein-4b` | Diffusers | ~13GB | 4 | Fast 4-step generation |
+| Model | Steps | VRAM | Resolution | Description |
+|-------|-------|------|------------|-------------|
+| `qwen-2512-lightning` | 4 | ~20GB | Up to 1664x1664 | Qwen FP8 Lightning (default) |
+| `flux-klein-4b` | 4 | ~13GB | Up to 1280x1280 | FLUX.2 Klein distilled |
 
 ## Supported Resolutions
 
+**Qwen Lightning:**
 | Aspect Ratio | Resolution |
 |--------------|------------|
 | 1:1 | 1328x1328 |
 | 16:9 | 1664x928 |
 | 9:16 | 928x1664 |
-| 4:3 | 1472x1104 |
-| 3:4 | 1104x1472 |
+
+**FLUX Klein:**
+| Aspect Ratio | Resolution |
+|--------------|------------|
+| 1:1 | 1024x1024 |
+| 16:9 | 1280x720 |
+| 9:16 | 720x1280 |
 
 ## Quick Start
 
@@ -46,24 +50,24 @@ docker compose up --build -d
 docker compose logs -f
 ```
 
-Models (~30GB) download automatically on first run.
+Models download automatically from HuggingFace on first use (~30GB total).
 
 ### API Usage
 
-**Generate Image:**
+**Generate with Qwen Lightning (default):**
 ```bash
 curl -X POST https://your-server.com/v1/images/create \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "A majestic lion in the African savanna at golden hour",
-    "model": "qwen-2512-gguf",
     "width": 1328,
     "height": 1328,
-    "steps": 25
+    "steps": 4,
+    "guidance_scale": 1.0
   }'
 ```
 
-**With FLUX (faster, 4 steps):**
+**Generate with FLUX Klein:**
 ```bash
 curl -X POST https://your-server.com/v1/images/create \
   -H "Content-Type: application/json" \
@@ -81,7 +85,7 @@ curl -X POST https://your-server.com/v1/images/create \
 {
   "data": [{"b64_json": "...base64 encoded image..."}],
   "created": 1706500000,
-  "model": "qwen-2512-gguf"
+  "model": "qwen-2512-lightning"
 }
 ```
 
@@ -97,10 +101,10 @@ curl -X POST https://your-server.com/v1/images/create \
 
 ## Requirements
 
-- **GPU**: NVIDIA RTX 4090 (24GB VRAM) or equivalent
+- **GPU**: NVIDIA RTX 4090 (24GB VRAM) or equivalent with 20GB+ VRAM
 - **CUDA**: 12.0+
 - **Docker**: With NVIDIA Container Toolkit configured
-- **Storage**: ~35GB for models
+- **Storage**: ~40GB for cached models
 
 ### Server Setup
 
@@ -120,18 +124,30 @@ docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GGUF_MODELS_PATH` | `/opt/models/qwen-gguf` | Path to GGUF model files |
-| `SD_CLI_PATH` | `/opt/stable-diffusion.cpp/build/bin/sd-cli` | Path to sd-cli binary |
-| `OFFLOAD_TO_CPU` | `false` | Offload to CPU for lower VRAM |
-| `SD_VERBOSE` | `false` | Enable verbose sd-cli output |
-| `DOWNLOAD_MODELS` | `true` | Auto-download models on startup |
+| `HF_HOME` | `/opt/models/huggingface` | HuggingFace cache directory |
+| `CUDA_VISIBLE_DEVICES` | `0` | GPU device to use |
 
-## Documentation
+## Architecture
 
-- [Deployment Guide](docs/DEPLOYMENT.md)
-- [GGUF Quick Start](docs/DEPLOY_GGUF_QUICKSTART.md)
-- [GGUF Implementation](docs/README_GGUF.md)
-- [VRAM Analysis](docs/VRAM_ANALYSIS.md)
+```
+┌─────────────────────────────────────┐
+│         FastAPI Application         │
+├─────────────────────────────────────┤
+│         Model Manager               │
+│  ┌─────────────┐ ┌───────────────┐  │
+│  │Qwen Lightning│ │ FLUX Klein   │  │
+│  │  (diffusers) │ │ (diffusers)  │  │
+│  └─────────────┘ └───────────────┘  │
+├─────────────────────────────────────┤
+│         HuggingFace Hub             │
+│      (automatic model caching)      │
+└─────────────────────────────────────┘
+```
+
+## Model Sources
+
+- **Qwen FP8 Lightning**: [lightx2v/Qwen-Image-2512-Lightning](https://huggingface.co/lightx2v/Qwen-Image-2512-Lightning)
+- **FLUX Klein 4B**: [black-forest-labs/FLUX.2-klein-4B](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B)
 
 ## License
 

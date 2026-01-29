@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This file provides guidance to WARP (warp.dev) when working with code in this repository.
+This file provides guidance to AI assistants when working with code in this repository.
 
 ## Build & Run Commands
 
@@ -22,7 +22,7 @@ pytest tests/test_specific.py::test_function  # single test
 
 # Docker
 docker build -t imagegen-endpoint .
-docker run --gpus all -p 8000:8000 -v $(pwd)/models:/app/models imagegen-endpoint
+docker run --gpus all -p 8000:8000 -v hf_cache:/opt/models/huggingface imagegen-endpoint
 docker-compose up -d
 ```
 
@@ -30,7 +30,7 @@ docker-compose up -d
 
 ### Request Flow
 ```
-FastAPI → Routes → Services → Model Manager → AI Models
+FastAPI → Routes → Services → Model Manager → diffusers Pipeline
                       ↓
               Image Processor (Pillow operations)
 ```
@@ -52,12 +52,14 @@ FastAPI → Routes → Services → Model Manager → AI Models
 ### Model Configuration
 
 Models are defined in `MODEL_CONFIGS` in `model_manager.py`. Each entry specifies:
-- HuggingFace repo IDs (base and FP8 variants)
-- Lightning LoRA repos for fast inference
+- HuggingFace repo IDs
 - VRAM requirements
-- License info
+- Default steps and guidance scale
+- Supported resolutions
 
-Current models: `qwen-2512`, `flux-klein-4b`, `flux-klein-9b`
+Current models:
+- `qwen-2512-lightning` - Qwen FP8 Lightning (4-step, default)
+- `flux-klein-4b` - FLUX.2 Klein 4B distilled (4-step)
 
 ### Image I/O Pattern
 
@@ -65,15 +67,16 @@ All image transfers use base64 encoding via `app/utils/image_utils.py`. Upload a
 
 ## Deployment
 
-- Docker image: `gordov1su4/imagegen-endpoint`
-- GitHub Actions workflow in `.github/workflows/deploy.yaml` builds, pushes to Docker Hub, then triggers Coolify webhook
-- Required secrets: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `COOLIFY_WEBHOOK_URL`, `COOLIFY_TOKEN`
-- Environment: `MODELS_PATH`, `HF_HOME`, `HF_TOKEN`, `DOWNLOAD_MODELS`
-- Models persist in `/app/models` volume (100GB+ recommended)
+- Docker image built from `Dockerfile`
+- Uses `nvidia/cuda:12.4.1-runtime-ubuntu22.04` base image
+- Models auto-download from HuggingFace on first use
+- Environment: `HF_HOME`, `CUDA_VISIBLE_DEVICES`
+- Models cached in `/opt/models/huggingface` volume (~40GB)
 
 ## Important Notes
 
-- AI model inference is stubbed with placeholders (`generate_placeholder_image`). Search for `# TODO:` to find integration points.
-- Lightning LoRAs only work with FP8 models, not GGUF quantized versions.
-- The `test-ui/` directory is excluded from git for local testing only.
-- Always use `.yaml` extension (not `.yml`) for Coolify compatibility.
+- All models use diffusers library with 4-step distilled/Lightning inference
+- Models download from HuggingFace Hub automatically on first use
+- VRAM cleared between generations to prevent memory buildup
+- Use `guidance_scale=1.0` for Lightning/distilled models
+- Always use `.yaml` extension (not `.yml`) for Coolify compatibility

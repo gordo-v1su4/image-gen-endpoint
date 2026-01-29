@@ -7,16 +7,10 @@ from pydantic import BaseModel, Field
 
 class ModelType(str, Enum):
     """Available model types."""
-    # Qwen GGUF models (recommended for RTX 4090)
-    QWEN_2512_GGUF = "qwen-2512-gguf"
-    QWEN_EDIT_GGUF = "qwen-edit-gguf"
-    # Qwen diffusers models (requires more VRAM)
-    QWEN_2512 = "qwen-2512"
-    QWEN_LIGHTNING_4STEP = "qwen-lightning-4step"
-    QWEN_LIGHTNING_8STEP = "qwen-lightning-8step"
-    # FLUX models (diffusers)
+    # Qwen FP8 Lightning (4-step)
+    QWEN_2512_LIGHTNING = "qwen-2512-lightning"
+    # FLUX Klein 4B (4-step)
     FLUX_KLEIN_4B = "flux-klein-4b"
-    FLUX_KLEIN_9B = "flux-klein-9b"
 
 
 class ImageFormat(str, Enum):
@@ -30,13 +24,12 @@ class ImageCreateRequest(BaseModel):
     """Request model for image generation."""
     prompt: str = Field(..., description="Text prompt for image generation")
     negative_prompt: Optional[str] = Field(None, description="Negative prompt")
-    model: ModelType = Field(ModelType.QWEN_2512_GGUF, description="Model to use")
+    model: ModelType = Field(ModelType.QWEN_2512_LIGHTNING, description="Model to use")
     width: int = Field(1328, ge=256, le=2048, description="Image width")
     height: int = Field(1328, ge=256, le=2048, description="Image height")
-    steps: int = Field(40, ge=1, le=100, description="Number of inference steps")
-    guidance_scale: float = Field(2.5, ge=0.0, le=20.0, description="Guidance scale")
+    steps: int = Field(4, ge=1, le=50, description="Number of inference steps")
+    guidance_scale: float = Field(1.0, ge=0.0, le=20.0, description="Guidance scale (use 1.0 for Lightning/distilled)")
     seed: Optional[int] = Field(None, description="Random seed for reproducibility")
-    use_lightning: bool = Field(False, description="Use Lightning LoRA (not applicable for GGUF)")
 
 
 class EditOperation(BaseModel):
@@ -49,9 +42,8 @@ class ImageEditRequest(BaseModel):
     """Request model for image editing."""
     prompt: Optional[str] = Field(None, description="Text prompt for AI editing")
     operations: List[EditOperation] = Field(..., description="List of edit operations")
-    model: ModelType = Field(ModelType.QWEN_EDIT_GGUF, description="Model to use for AI editing")
-    steps: int = Field(40, ge=1, le=100, description="Number of inference steps")
-    use_lightning: bool = Field(False, description="Use Lightning LoRA (not applicable for GGUF)")
+    model: ModelType = Field(ModelType.QWEN_2512_LIGHTNING, description="Model to use for AI editing")
+    steps: int = Field(4, ge=1, le=50, description="Number of inference steps")
 
 
 class ImageMetadata(BaseModel):
@@ -108,7 +100,8 @@ class ModelInfo(BaseModel):
     type: ModelType
     status: str  # "ready", "loading", "not_loaded"
     vram_usage: Optional[float] = None  # GB
-    quantization: Optional[str] = None
+    steps: int = 4
+    description: Optional[str] = None
 
 
 class ModelsResponse(BaseModel):
@@ -124,4 +117,4 @@ class HealthResponse(BaseModel):
     gpu_name: Optional[str] = None
     gpu_memory_total: Optional[float] = None  # GB
     gpu_memory_used: Optional[float] = None  # GB
-    reason: Optional[str] = None  # Reason if CUDA is not available
+    reason: Optional[str] = None

@@ -94,9 +94,9 @@ async def edit_image_ai(
     image: Optional[UploadFile] = File(None),
     image_base64: Optional[str] = Form(None),
     prompt: str = Form(..., description="Text prompt describing the edit"),
-    model: str = Form("qwen-edit-gguf", description="Model to use for editing"),
-    steps: int = Form(40, ge=1, le=100, description="Number of inference steps"),
-    guidance_scale: float = Form(4.0, ge=0.0, le=20.0, description="Guidance scale"),
+    model: str = Form("qwen-2512-lightning", description="Model to use for editing"),
+    steps: int = Form(4, ge=1, le=50, description="Number of inference steps"),
+    guidance_scale: float = Form(1.0, ge=0.0, le=20.0, description="Guidance scale"),
     seed: Optional[int] = Form(None, description="Random seed for reproducibility"),
 ):
     """Edit an image using AI (Qwen-Image-Edit-2511).
