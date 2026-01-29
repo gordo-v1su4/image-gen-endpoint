@@ -42,10 +42,10 @@ MODEL_CONFIGS = {
         "repo_id": "Qwen/Qwen-Image-2512",
         "lora_repo": "lightx2v/Qwen-Image-Lightning",
         "lora_file": "Qwen-Image-2512-Lightning/Qwen-Image-2512-Lightning-4steps-V1.0-fp32.safetensors",
-        "vram": 20,  # GB
+        "vram": 20,  # GB (bfloat16)
         "steps": 4,  # 4-step Lightning
         "guidance_scale": 1.0,  # cfg 1.0 for Lightning
-        "description": "Qwen-Image-2512 Lightning - Fast 4-step generation",
+        "description": "Qwen-Image-2512 Lightning - Fast 4-step text-to-image",
         "license": "apache-2.0",
         "supported_sizes": {
             "1:1": (1328, 1328),
@@ -55,6 +55,25 @@ MODEL_CONFIGS = {
             "3:4": (1104, 1472),
             "3:2": (1584, 1056),
             "2:3": (1056, 1584),
+        },
+        "default_size": (1328, 1328),
+    },
+    # Qwen-Image-Edit-2511 Lightning - 4-step image editing
+    # Base model + Lightning LoRA for fast 4-step editing
+    "qwen-image-edit-2511-lightning": {
+        "model_type": "qwen_edit_lightning",
+        "repo_id": "Qwen/Qwen-Image-Edit-2511",
+        "lora_repo": "lightx2v/Qwen-Image-Edit-2511-Lightning",
+        "lora_file": "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors",
+        "vram": 20,  # GB (bfloat16)
+        "steps": 4,  # 4-step Lightning
+        "guidance_scale": 1.0,  # cfg 1.0 for Lightning
+        "description": "Qwen-Image-Edit-2511 Lightning - Fast 4-step image editing",
+        "license": "apache-2.0",
+        "supported_sizes": {
+            "1:1": (1328, 1328),
+            "16:9": (1664, 928),
+            "9:16": (928, 1664),
         },
         "default_size": (1328, 1328),
     },
@@ -142,6 +161,8 @@ class ModelManager:
         try:
             if config["model_type"] == "qwen_lightning":
                 pipeline = await self._load_qwen_lightning(config)
+            elif config["model_type"] == "qwen_edit_lightning":
+                pipeline = await self._load_qwen_edit_lightning(config)
             else:
                 raise ValueError(f"Unknown model type: {config['model_type']}")
 
@@ -160,10 +181,43 @@ class ModelManager:
 
     async def _load_qwen_lightning(self, config: dict):
         """Load Qwen-Image-2512 with Lightning LoRA for fast 4-step generation."""
-        logger.info(f"Loading Qwen-Image from {config['repo_id']}")
+        import math
+        from diffusers import FlowMatchEulerDiscreteScheduler
+        from diffusers.models import QwenImageTransformer2DModel
         
+        logger.info(f"Loading Qwen-Image transformer from {config['repo_id']}")
+        
+        # Load transformer separately for LoRA compatibility
+        transformer = QwenImageTransformer2DModel.from_pretrained(
+            config["repo_id"],
+            subfolder="transformer",
+            torch_dtype=self.dtype,
+        )
+        
+        # Custom scheduler config for Lightning (shift=3)
+        scheduler_config = {
+            "base_image_seq_len": 256,
+            "base_shift": math.log(3),  # shift=3 for Lightning distillation
+            "invert_sigmas": False,
+            "max_image_seq_len": 8192,
+            "max_shift": math.log(3),
+            "num_train_timesteps": 1000,
+            "shift": 1.0,
+            "shift_terminal": None,
+            "stochastic_sampling": False,
+            "time_shift_type": "exponential",
+            "use_beta_sigmas": False,
+            "use_dynamic_shifting": True,
+            "use_exponential_sigmas": False,
+            "use_karras_sigmas": False,
+        }
+        scheduler = FlowMatchEulerDiscreteScheduler.from_config(scheduler_config)
+        
+        # Load pipeline with custom transformer and scheduler
         pipeline = DiffusionPipeline.from_pretrained(
             config["repo_id"],
+            transformer=transformer,
+            scheduler=scheduler,
             torch_dtype=self.dtype,
         )
         
@@ -175,6 +229,68 @@ class ModelManager:
                 filename=config["lora_file"],
             )
             logger.info(f"Loading Lightning LoRA: {lora_path}")
+            pipeline.load_lora_weights(lora_path)
+        
+        pipeline = pipeline.to(self.device)
+        
+        # Enable memory optimizations
+        if hasattr(pipeline, "enable_vae_slicing"):
+            pipeline.enable_vae_slicing()
+        if hasattr(pipeline, "enable_vae_tiling"):
+            pipeline.enable_vae_tiling()
+            
+        return pipeline
+
+    async def _load_qwen_edit_lightning(self, config: dict):
+        """Load Qwen-Image-Edit-2511 with Lightning LoRA for fast 4-step editing."""
+        import math
+        from diffusers import FlowMatchEulerDiscreteScheduler, QwenImageEditPlusPipeline
+        from diffusers.models import QwenImageTransformer2DModel
+        
+        logger.info(f"Loading Qwen-Image-Edit transformer from {config['repo_id']}")
+        
+        # Load transformer separately for LoRA compatibility
+        transformer = QwenImageTransformer2DModel.from_pretrained(
+            config["repo_id"],
+            subfolder="transformer",
+            torch_dtype=self.dtype,
+        )
+        
+        # Custom scheduler config for Lightning (shift=3)
+        scheduler_config = {
+            "base_image_seq_len": 256,
+            "base_shift": math.log(3),
+            "invert_sigmas": False,
+            "max_image_seq_len": 8192,
+            "max_shift": math.log(3),
+            "num_train_timesteps": 1000,
+            "shift": 1.0,
+            "shift_terminal": None,
+            "stochastic_sampling": False,
+            "time_shift_type": "exponential",
+            "use_beta_sigmas": False,
+            "use_dynamic_shifting": True,
+            "use_exponential_sigmas": False,
+            "use_karras_sigmas": False,
+        }
+        scheduler = FlowMatchEulerDiscreteScheduler.from_config(scheduler_config)
+        
+        # Load Edit pipeline with custom transformer and scheduler
+        pipeline = QwenImageEditPlusPipeline.from_pretrained(
+            config["repo_id"],
+            transformer=transformer,
+            scheduler=scheduler,
+            torch_dtype=self.dtype,
+        )
+        
+        # Download and load Lightning LoRA
+        if "lora_repo" in config and "lora_file" in config:
+            logger.info(f"Downloading Edit Lightning LoRA from {config['lora_repo']}")
+            lora_path = hf_hub_download(
+                repo_id=config["lora_repo"],
+                filename=config["lora_file"],
+            )
+            logger.info(f"Loading Edit Lightning LoRA: {lora_path}")
             pipeline.load_lora_weights(lora_path)
         
         pipeline = pipeline.to(self.device)

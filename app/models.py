@@ -7,8 +7,10 @@ from pydantic import BaseModel, Field
 
 class ModelType(str, Enum):
     """Available model types."""
-    # Qwen-Image-2512 Lightning - Fast 4-step via LoRA
+    # Qwen-Image-2512 Lightning - Fast 4-step text-to-image
     QWEN_IMAGE_2512_LIGHTNING = "qwen-image-2512-lightning"
+    # Qwen-Image-Edit-2511 Lightning - Fast 4-step image editing
+    QWEN_IMAGE_EDIT_2511_LIGHTNING = "qwen-image-edit-2511-lightning"
 
 
 class ImageFormat(str, Enum):
