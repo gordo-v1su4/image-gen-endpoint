@@ -1,5 +1,6 @@
 """GGUF model manager using stable-diffusion.cpp."""
 import asyncio
+import gc
 import os
 import uuid
 from pathlib import Path
@@ -8,6 +9,23 @@ from typing import Optional, List
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Global lock to ensure only one generation runs at a time
+_generation_lock = asyncio.Lock()
+
+
+def _clear_vram():
+    """Clear VRAM after generation to prevent memory buildup."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            logger.info("🧹 VRAM cleared")
+    except ImportError:
+        pass
+    # Also trigger Python garbage collection
+    gc.collect()
 
 # Model configurations for GGUF models
 GGUF_MODEL_CONFIGS = {
@@ -147,23 +165,38 @@ class GGUFModelManager:
         logger.info(f"🎨 Generating {width}x{height} image with {model_name} ({steps} steps)")
         logger.debug(f"Command: {' '.join(cmd)}")
 
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+        # Acquire lock to ensure only one generation at a time
+        async with _generation_lock:
+            logger.info("🔒 Acquired generation lock")
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
 
-        stdout, stderr = await process.communicate()
+                stdout, stderr = await process.communicate()
 
-        if process.returncode != 0:
-            error_msg = stderr.decode() if stderr else "Unknown error"
-            logger.error(f"❌ GGUF generation failed: {error_msg}")
-            raise RuntimeError(f"GGUF generation failed: {error_msg}")
+                if process.returncode != 0:
+                    error_msg = stderr.decode() if stderr else "Unknown error"
+                    logger.error(f"❌ GGUF generation failed: {error_msg}")
+                    raise RuntimeError(f"GGUF generation failed: {error_msg}")
 
-        logger.info(f"✅ Image generated successfully at {output_path}")
+                logger.info(f"✅ Image generated successfully at {output_path}")
 
-        image = Image.open(output_path)
-        return image
+                image = Image.open(output_path)
+                
+                # Clean up temp file
+                try:
+                    os.remove(output_path)
+                except OSError:
+                    pass
+                    
+                return image
+            finally:
+                # Always clear VRAM after generation
+                _clear_vram()
+                logger.info("🔓 Released generation lock")
 
     async def edit_image(
         self,
@@ -235,26 +268,41 @@ class GGUFModelManager:
         logger.info(f"✏️ Editing image with qwen-edit-gguf ({steps} steps)")
         logger.debug(f"Command: {' '.join(cmd)}")
 
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+        # Acquire lock to ensure only one generation at a time
+        async with _generation_lock:
+            logger.info("🔒 Acquired generation lock (edit)")
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
 
-        stdout, stderr = await process.communicate()
+                stdout, stderr = await process.communicate()
 
-        # Clean up input file
-        try:
-            os.remove(input_path)
-        except OSError:
-            pass
+                # Clean up input file
+                try:
+                    os.remove(input_path)
+                except OSError:
+                    pass
 
-        if process.returncode != 0:
-            error_msg = stderr.decode() if stderr else "Unknown error"
-            logger.error(f"❌ GGUF edit failed: {error_msg}")
-            raise RuntimeError(f"GGUF edit failed: {error_msg}")
+                if process.returncode != 0:
+                    error_msg = stderr.decode() if stderr else "Unknown error"
+                    logger.error(f"❌ GGUF edit failed: {error_msg}")
+                    raise RuntimeError(f"GGUF edit failed: {error_msg}")
 
-        logger.info(f"✅ Image edited successfully at {output_path}")
+                logger.info(f"✅ Image edited successfully at {output_path}")
 
-        image = Image.open(output_path)
-        return image
+                image = Image.open(output_path)
+                
+                # Clean up output temp file
+                try:
+                    os.remove(output_path)
+                except OSError:
+                    pass
+                    
+                return image
+            finally:
+                # Always clear VRAM after generation
+                _clear_vram()
+                logger.info("🔓 Released generation lock (edit)")
