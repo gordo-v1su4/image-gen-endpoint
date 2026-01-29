@@ -63,8 +63,7 @@ generateBtn.addEventListener('click', async () => {
                 model: document.getElementById('model').value,
                 steps: parseInt(document.getElementById('steps').value),
                 width: parseInt(document.getElementById('width').value),
-                height: parseInt(document.getElementById('height').value),
-                use_lightning: document.getElementById('use-lightning').checked
+                height: parseInt(document.getElementById('height').value)
             })
         });
 

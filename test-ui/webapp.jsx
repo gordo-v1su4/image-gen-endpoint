@@ -34,21 +34,18 @@ const App = () => {
   const [isCustomModel, setIsCustomModel] = useState(false);
   
   const [params, setParams] = useState({
-    model: "Qwen-Image-2512",
-    width: 1024,
-    height: 1024,
-    steps: 8,
+    model: "qwen-2512-fp8-4step",
+    width: 1328,
+    height: 1328,
+    steps: 4,
     guidance_scale: 1,
-    seed: 0,
-    use_lightning: true
+    seed: 0
   });
 
-  // Updated based on provided documentation
+  // Available models
   const MODELS = [
-    { id: "Qwen-Image-2512", name: "Qwen Image 2512", type: "Gen & Edit" },
-    { id: "FLUX.2-klein-4B", name: "FLUX.2 Klein 4B", type: "Fast Gen" },
-    { id: "FLUX.2-klein-9B", name: "FLUX.2 Klein 9B", type: "High Quality" },
-    { id: "custom", name: "Custom / Other...", type: "Manual Input" }
+    { id: "qwen-2512-fp8-4step", name: "Qwen FP8 4-Step", type: "Default" },
+    { id: "flux-klein-4b", name: "FLUX Klein 4B", type: "Fast" }
   ];
 
   const BASE_URL = 'https://image.v1su4.com';
