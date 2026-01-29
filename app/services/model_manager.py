@@ -49,6 +49,25 @@ from .gguf_manager import GGUFModelManager
 
 # Model configurations - built dynamically based on available imports
 MODEL_CONFIGS = {
+    # Flux models (use diffusers library)
+    "flux-klein-4b": {
+        "model_type": "diffusers",
+        "repo_id": "black-forest-labs/FLUX.2-klein-4B",
+        "pipeline_class": Flux2KleinPipeline,
+        "vram": 13,  # GB (bfloat16) - fits on RTX 4090
+        "steps": 4,  # Native 4-step generation
+        "guidance_scale": 1.0,
+        "description": "FLUX.2 Klein 4B - Fast 4-step generation, Apache 2.0 license",
+        "license": "apache-2.0",
+        "supported_sizes": {
+            "1:1": (1024, 1024),
+            "16:9": (1280, 720),
+            "9:16": (720, 1280),
+            "4:3": (1152, 896),
+            "3:4": (896, 1152),
+        },
+        "default_size": (1024, 1024),
+    },
     # GGUF models (always available - use stable-diffusion.cpp, not diffusers)
     "qwen-2512-gguf": {
         "model_type": "gguf",
