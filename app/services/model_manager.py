@@ -25,6 +25,7 @@ except ImportError:
 # Import diffusers
 try:
     from diffusers import DiffusionPipeline
+    from huggingface_hub import hf_hub_download
     DIFFUSERS_AVAILABLE = True
 except ImportError as e:
     DIFFUSERS_AVAILABLE = False
@@ -33,15 +34,18 @@ except ImportError as e:
 
 # Model configurations
 MODEL_CONFIGS = {
-    # Qwen-Image-2512 - Official Qwen text-to-image model
-    # Uses DiffusionPipeline.from_pretrained() with standard diffusers
-    "qwen-image-2512": {
-        "model_type": "qwen",
+    # Qwen-Image-2512 Lightning - 4-step distilled model via LoRA
+    # Base model + Lightning LoRA for fast 4-step generation
+    # See: https://github.com/ModelTC/Qwen-Image-Lightning
+    "qwen-image-2512-lightning": {
+        "model_type": "qwen_lightning",
         "repo_id": "Qwen/Qwen-Image-2512",
+        "lora_repo": "lightx2v/Qwen-Image-Lightning",
+        "lora_file": "Qwen-Image-2512-Lightning/Qwen-Image-2512-Lightning-4steps-V1.0-fp32.safetensors",
         "vram": 20,  # GB
-        "steps": 50,  # Default recommended steps
-        "guidance_scale": 4.0,  # true_cfg_scale
-        "description": "Qwen-Image-2512 - High quality text-to-image generation",
+        "steps": 4,  # 4-step Lightning
+        "guidance_scale": 1.0,  # cfg 1.0 for Lightning
+        "description": "Qwen-Image-2512 Lightning - Fast 4-step generation",
         "license": "apache-2.0",
         "supported_sizes": {
             "1:1": (1328, 1328),
@@ -136,8 +140,8 @@ class ModelManager:
         logger.info(f"Loading model: {model_name}")
         
         try:
-            if config["model_type"] == "qwen":
-                pipeline = await self._load_qwen(config)
+            if config["model_type"] == "qwen_lightning":
+                pipeline = await self._load_qwen_lightning(config)
             else:
                 raise ValueError(f"Unknown model type: {config['model_type']}")
 
@@ -154,14 +158,25 @@ class ModelManager:
             logger.error(f"Error loading model {model_name}: {e}")
             raise ValueError(f"Failed to load model {model_name}: {str(e)}")
 
-    async def _load_qwen(self, config: dict):
-        """Load Qwen-Image-2512 model using standard diffusers."""
+    async def _load_qwen_lightning(self, config: dict):
+        """Load Qwen-Image-2512 with Lightning LoRA for fast 4-step generation."""
         logger.info(f"Loading Qwen-Image from {config['repo_id']}")
         
         pipeline = DiffusionPipeline.from_pretrained(
             config["repo_id"],
             torch_dtype=self.dtype,
         )
+        
+        # Download and load Lightning LoRA
+        if "lora_repo" in config and "lora_file" in config:
+            logger.info(f"Downloading Lightning LoRA from {config['lora_repo']}")
+            lora_path = hf_hub_download(
+                repo_id=config["lora_repo"],
+                filename=config["lora_file"],
+            )
+            logger.info(f"Loading Lightning LoRA: {lora_path}")
+            pipeline.load_lora_weights(lora_path)
+        
         pipeline = pipeline.to(self.device)
         
         # Enable memory optimizations

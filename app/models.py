@@ -7,8 +7,8 @@ from pydantic import BaseModel, Field
 
 class ModelType(str, Enum):
     """Available model types."""
-    # Qwen-Image-2512 - Official Qwen text-to-image model
-    QWEN_IMAGE_2512 = "qwen-image-2512"
+    # Qwen-Image-2512 Lightning - Fast 4-step via LoRA
+    QWEN_IMAGE_2512_LIGHTNING = "qwen-image-2512-lightning"
 
 
 class ImageFormat(str, Enum):
@@ -22,11 +22,11 @@ class ImageCreateRequest(BaseModel):
     """Request model for image generation."""
     prompt: str = Field(..., description="Text prompt for image generation")
     negative_prompt: Optional[str] = Field(None, description="Negative prompt")
-    model: ModelType = Field(ModelType.QWEN_IMAGE_2512, description="Model to use")
+    model: ModelType = Field(ModelType.QWEN_IMAGE_2512_LIGHTNING, description="Model to use")
     width: int = Field(1328, ge=256, le=2048, description="Image width")
     height: int = Field(1328, ge=256, le=2048, description="Image height")
-    steps: int = Field(50, ge=1, le=100, description="Number of inference steps")
-    guidance_scale: float = Field(4.0, ge=0.0, le=20.0, description="Guidance scale (true_cfg_scale)")
+    steps: int = Field(4, ge=1, le=100, description="Number of inference steps")
+    guidance_scale: float = Field(1.0, ge=0.0, le=20.0, description="Guidance scale (1.0 for Lightning)")
     seed: Optional[int] = Field(None, description="Random seed for reproducibility")
 
 
@@ -40,8 +40,8 @@ class ImageEditRequest(BaseModel):
     """Request model for image editing."""
     prompt: Optional[str] = Field(None, description="Text prompt for AI editing")
     operations: List[EditOperation] = Field(..., description="List of edit operations")
-    model: ModelType = Field(ModelType.QWEN_IMAGE_2512, description="Model to use for AI editing")
-    steps: int = Field(50, ge=1, le=100, description="Number of inference steps")
+    model: ModelType = Field(ModelType.QWEN_IMAGE_2512_LIGHTNING, description="Model to use for AI editing")
+    steps: int = Field(4, ge=1, le=100, description="Number of inference steps")
 
 
 class ImageMetadata(BaseModel):
