@@ -25,7 +25,7 @@ class ImageCreateRequest(BaseModel):
     """Request model for image generation."""
     prompt: str = Field(..., description="Text prompt for image generation")
     negative_prompt: Optional[str] = Field(None, description="Negative prompt")
-    model: ModelType = Field(ModelType.QWEN_2512_FP8_4STEP, description="Model to use")
+    model: ModelType = Field(ModelType.FLUX_KLEIN_4B, description="Model to use")
     width: int = Field(1328, ge=256, le=2048, description="Image width")
     height: int = Field(1328, ge=256, le=2048, description="Image height")
     steps: int = Field(4, ge=1, le=50, description="Number of inference steps")
@@ -43,7 +43,7 @@ class ImageEditRequest(BaseModel):
     """Request model for image editing."""
     prompt: Optional[str] = Field(None, description="Text prompt for AI editing")
     operations: List[EditOperation] = Field(..., description="List of edit operations")
-    model: ModelType = Field(ModelType.QWEN_2512_FP8_4STEP, description="Model to use for AI editing")
+    model: ModelType = Field(ModelType.FLUX_KLEIN_4B, description="Model to use for AI editing")
     steps: int = Field(4, ge=1, le=50, description="Number of inference steps")
 
 

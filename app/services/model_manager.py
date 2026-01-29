@@ -24,12 +24,12 @@ except ImportError:
 
 # Import diffusers
 try:
-    from diffusers import FluxPipeline, DiffusionPipeline
+    from diffusers import Flux2KleinPipeline, DiffusionPipeline
     from huggingface_hub import hf_hub_download
     DIFFUSERS_AVAILABLE = True
 except ImportError as e:
     DIFFUSERS_AVAILABLE = False
-    FluxPipeline = None
+    Flux2KleinPipeline = None
     DiffusionPipeline = None
     logger.warning(f"diffusers not available: {e}")
 
@@ -178,14 +178,15 @@ class ModelManager:
             raise ValueError(f"Failed to load model {model_name}: {str(e)}")
 
     async def _load_flux(self, config: dict):
-        """Load FLUX Klein model."""
-        logger.info(f"Loading FLUX from {config['repo_id']}")
+        """Load FLUX.2 Klein model."""
+        logger.info(f"Loading FLUX.2 Klein from {config['repo_id']}")
         
-        pipeline = FluxPipeline.from_pretrained(
+        pipeline = Flux2KleinPipeline.from_pretrained(
             config["repo_id"],
             torch_dtype=self.dtype,
         )
-        pipeline = pipeline.to(self.device)
+        # Use CPU offload for memory efficiency
+        pipeline.enable_model_cpu_offload()
         
         # Enable memory optimizations
         if hasattr(pipeline, "enable_vae_slicing"):
@@ -196,29 +197,17 @@ class ModelManager:
         return pipeline
 
     async def _load_qwen_lightning(self, config: dict):
-        """Load Qwen FP8 Lightning model."""
-        logger.info(f"Loading Qwen Lightning from {config['repo_id']}")
+        """Load Qwen FP8 Lightning model.
         
-        # Download the pre-baked FP8 Lightning model
-        model_path = hf_hub_download(
-            repo_id=config["repo_id"],
-            filename=config["diffusion_file"],
+        Note: The Qwen-Image-2512-Lightning model requires the specialized
+        Qwen-Image-Lightning or LightX2V framework, not standard diffusers.
+        See: https://github.com/ModelTC/Qwen-Image-Lightning/
+        """
+        raise NotImplementedError(
+            "Qwen-Image-2512-Lightning requires the Qwen-Image-Lightning framework. "
+            "This model is not yet supported via standard diffusers. "
+            "Please use 'flux-klein-4b' instead."
         )
-        
-        # Load using DiffusionPipeline with single_file
-        pipeline = DiffusionPipeline.from_single_file(
-            model_path,
-            torch_dtype=self.dtype,
-        )
-        pipeline = pipeline.to(self.device)
-        
-        # Enable memory optimizations
-        if hasattr(pipeline, "enable_vae_slicing"):
-            pipeline.enable_vae_slicing()
-        if hasattr(pipeline, "enable_vae_tiling"):
-            pipeline.enable_vae_tiling()
-            
-        return pipeline
     
     async def unload_model(self, model_name: str):
         """Unload a model from memory."""

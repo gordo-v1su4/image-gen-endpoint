@@ -34,9 +34,9 @@ const App = () => {
   const [isCustomModel, setIsCustomModel] = useState(false);
   
   const [params, setParams] = useState({
-    model: "qwen-2512-fp8-4step",
-    width: 1328,
-    height: 1328,
+    model: "flux-klein-4b",
+    width: 1024,
+    height: 1024,
     steps: 4,
     guidance_scale: 1,
     seed: 0
@@ -44,8 +44,8 @@ const App = () => {
 
   // Available models
   const MODELS = [
-    { id: "qwen-2512-fp8-4step", name: "Qwen FP8 4-Step", type: "Default" },
-    { id: "flux-klein-4b", name: "FLUX Klein 4B", type: "Fast" }
+    { id: "flux-klein-4b", name: "FLUX.2 Klein 4B", type: "Default" },
+    { id: "qwen-2512-fp8-4step", name: "Qwen FP8 4-Step", type: "Requires Special Framework" }
   ];
 
   const BASE_URL = 'https://image.v1su4.com';
