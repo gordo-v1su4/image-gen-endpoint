@@ -24,30 +24,24 @@ except ImportError:
 
 # Import diffusers
 try:
-    from diffusers import Flux2KleinPipeline, DiffusionPipeline
-    from huggingface_hub import hf_hub_download
+    from diffusers import DiffusionPipeline
     DIFFUSERS_AVAILABLE = True
 except ImportError as e:
     DIFFUSERS_AVAILABLE = False
-    Flux2KleinPipeline = None
     DiffusionPipeline = None
     logger.warning(f"diffusers not available: {e}")
 
 # Model configurations
 MODEL_CONFIGS = {
-    # Qwen FP8 Lightning - Pre-baked 4-step model from lightx2v
-    # File: qwen_image_2512_fp8_e4m3fn_scaled_4steps_v1.0.safetensors (20.5 GB)
-    # This is NOT a LoRA - it's the full model with Lightning distillation baked in
-    "qwen-2512-fp8-4step": {
-        "model_type": "qwen_lightning",
-        "repo_id": "lightx2v/Qwen-Image-2512-Lightning",
-        "diffusion_file": "qwen_image_2512_fp8_e4m3fn_scaled_4steps_v1.0.safetensors",
-        "text_encoder_repo": "Qwen/Qwen2.5-VL-7B-Instruct",
-        "vae_repo": "Qwen/Qwen-Image-2512",
+    # Qwen-Image-2512 - Official Qwen text-to-image model
+    # Uses DiffusionPipeline.from_pretrained() with standard diffusers
+    "qwen-image-2512": {
+        "model_type": "qwen",
+        "repo_id": "Qwen/Qwen-Image-2512",
         "vram": 20,  # GB
-        "steps": 4,
-        "guidance_scale": 1.0,
-        "description": "Qwen-Image-2512 FP8 (e4m3fn) with 4-step Lightning distillation baked in",
+        "steps": 50,  # Default recommended steps
+        "guidance_scale": 4.0,  # true_cfg_scale
+        "description": "Qwen-Image-2512 - High quality text-to-image generation",
         "license": "apache-2.0",
         "supported_sizes": {
             "1:1": (1328, 1328),
@@ -55,25 +49,10 @@ MODEL_CONFIGS = {
             "9:16": (928, 1664),
             "4:3": (1472, 1104),
             "3:4": (1104, 1472),
+            "3:2": (1584, 1056),
+            "2:3": (1056, 1584),
         },
         "default_size": (1328, 1328),
-    },
-    "flux-klein-4b": {
-        "model_type": "flux",
-        "repo_id": "black-forest-labs/FLUX.2-klein-4B",
-        "vram": 13,  # GB
-        "steps": 4,
-        "guidance_scale": 1.0,
-        "description": "FLUX.2 Klein 4B - Fast 4-step distilled generation",
-        "license": "apache-2.0",
-        "supported_sizes": {
-            "1:1": (1024, 1024),
-            "16:9": (1280, 720),
-            "9:16": (720, 1280),
-            "4:3": (1152, 896),
-            "3:4": (896, 1152),
-        },
-        "default_size": (1024, 1024),
     },
 }
 
@@ -157,10 +136,8 @@ class ModelManager:
         logger.info(f"Loading model: {model_name}")
         
         try:
-            if config["model_type"] == "flux":
-                pipeline = await self._load_flux(config)
-            elif config["model_type"] == "qwen_lightning":
-                pipeline = await self._load_qwen_lightning(config)
+            if config["model_type"] == "qwen":
+                pipeline = await self._load_qwen(config)
             else:
                 raise ValueError(f"Unknown model type: {config['model_type']}")
 
@@ -177,16 +154,15 @@ class ModelManager:
             logger.error(f"Error loading model {model_name}: {e}")
             raise ValueError(f"Failed to load model {model_name}: {str(e)}")
 
-    async def _load_flux(self, config: dict):
-        """Load FLUX.2 Klein model."""
-        logger.info(f"Loading FLUX.2 Klein from {config['repo_id']}")
+    async def _load_qwen(self, config: dict):
+        """Load Qwen-Image-2512 model using standard diffusers."""
+        logger.info(f"Loading Qwen-Image from {config['repo_id']}")
         
-        pipeline = Flux2KleinPipeline.from_pretrained(
+        pipeline = DiffusionPipeline.from_pretrained(
             config["repo_id"],
             torch_dtype=self.dtype,
         )
-        # Use CPU offload for memory efficiency
-        pipeline.enable_model_cpu_offload()
+        pipeline = pipeline.to(self.device)
         
         # Enable memory optimizations
         if hasattr(pipeline, "enable_vae_slicing"):
@@ -195,19 +171,6 @@ class ModelManager:
             pipeline.enable_vae_tiling()
             
         return pipeline
-
-    async def _load_qwen_lightning(self, config: dict):
-        """Load Qwen FP8 Lightning model.
-        
-        Note: The Qwen-Image-2512-Lightning model requires the specialized
-        Qwen-Image-Lightning or LightX2V framework, not standard diffusers.
-        See: https://github.com/ModelTC/Qwen-Image-Lightning/
-        """
-        raise NotImplementedError(
-            "Qwen-Image-2512-Lightning requires the Qwen-Image-Lightning framework. "
-            "This model is not yet supported via standard diffusers. "
-            "Please use 'flux-klein-4b' instead."
-        )
     
     async def unload_model(self, model_name: str):
         """Unload a model from memory."""
@@ -268,7 +231,7 @@ class ModelManager:
                     width=width,
                     height=height,
                     num_inference_steps=steps,
-                    guidance_scale=guidance_scale,
+                    true_cfg_scale=guidance_scale,  # Qwen uses true_cfg_scale
                     generator=generator,
                 )
 
