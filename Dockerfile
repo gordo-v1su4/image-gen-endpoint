@@ -19,8 +19,19 @@ ENV CUDA_HOME=/usr/local/cuda
 ENV PATH="${CUDA_HOME}/bin:${PATH}"
 ENV LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}"
 
-# Install uv for Python and dependency management
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+# Install uv for Python and dependency management (direct binary download)
+# Download uv binary directly to avoid installer script segfault
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then \
+        UV_ARCH="x86_64-unknown-linux-gnu"; \
+    elif [ "$ARCH" = "aarch64" ]; then \
+        UV_ARCH="aarch64-unknown-linux-gnu"; \
+    else \
+        echo "Unsupported architecture: $ARCH" && exit 1; \
+    fi && \
+    mkdir -p /root/.local/bin && \
+    curl -LsSf https://github.com/astral-sh/uv/releases/latest/download/uv-${UV_ARCH}.tar.gz | tar -xz -C /root/.local/bin && \
+    chmod +x /root/.local/bin/uv
 ENV PATH="/root/.local/bin:${PATH}"
 
 # Install Python 3.10 using uv
