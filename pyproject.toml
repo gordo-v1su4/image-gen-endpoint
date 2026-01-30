@@ -19,7 +19,9 @@ dependencies = [
     "huggingface-hub>=0.20.0",
     "bitsandbytes>=0.42.0",
     "optimum>=1.16.0",
+    "optimum-quanto>=0.2.0",  # FP8 quantization for efficient VRAM usage
     "peft>=0.10.0",
+    "setuptools>=69.0.0",  # Required by optimum-quanto
 ]
 
 [project.optional-dependencies]

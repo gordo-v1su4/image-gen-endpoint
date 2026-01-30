@@ -1,23 +1,26 @@
 # Diffusers-only image generation API
-# Supports: Qwen-Image-2512 Lightning (4-step)
-FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04
+# Supports: Qwen-Image-2512 Lightning (4-step) with FP8 quantization
+# Using devel image for nvcc (required by optimum-quanto FP8)
+FROM nvidia/cuda:12.4.1-devel-ubuntu22.04
 
-# Build args
-ARG DOWNLOAD_MODELS=true
+# Build args - models download at container start, not build
+ARG DOWNLOAD_MODELS=false
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
-# Install minimal system dependencies (curl, git for uv and model downloads)
+# Install system dependencies (curl, git, g++ for CUDA extension compilation)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl git ca-certificates \
+    curl git ca-certificates g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Set CUDA environment for runtime
+# Set CUDA environment
 ENV CUDA_HOME=/usr/local/cuda
 ENV PATH="${CUDA_HOME}/bin:${PATH}"
 ENV LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}"
+# Target RTX 4090 (Ada Lovelace, compute 8.9) for Quanto CUDA compilation
+ENV TORCH_CUDA_ARCH_LIST="8.9"
 
 # Install uv for Python and dependency management (direct binary download)
 # Download uv binary directly to avoid installer script segfault
@@ -45,11 +48,9 @@ RUN for py in /root/.local/share/uv/python/cpython-3.10.*/bin/python3.10; do \
         fi; \
     done
 
-# Create models directory
-RUN mkdir -p /opt/models/huggingface
-
-# Set HF cache directory early
-ENV HF_HOME=/opt/models/huggingface
+# Set HF cache directory (will be mounted as volume)
+ENV HF_HOME=/root/.cache/huggingface
+RUN mkdir -p /root/.cache/huggingface
 
 # Copy application
 WORKDIR /app
